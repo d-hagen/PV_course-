@@ -77,6 +77,20 @@ module alu_4bit_tb;
         end
 
         for (op_i = 0; op_i < 8; op_i = op_i + 1) begin
+            case (op_i)
+                0: op_name = "ADD";
+                1: op_name = "SUB";
+                2: op_name = "AND";
+                3: op_name = "OR";
+                4: op_name = "XOR";
+                5: op_name = "NOT A";
+                6: op_name = "PASS A";
+                7: op_name = "PASS B";
+            endcase
+
+            $display("\n-------- %s (%03b) --------", op_name, op_i[2:0]);
+
+            // Pass 1: print all FAILs
             for (a = 0; a < 16; a = a + 1) begin
                 for (b = 0; b < 16; b = b + 1) begin
                     _op = op_i[2:0];
@@ -90,18 +104,37 @@ module alu_4bit_tb;
 
                         if ((_Y !== _Y_cmp) && (_carry !== _carry_cmp)) begin
                             joined_mismatch[op_i] = joined_mismatch[op_i] + 1;
-                            $display("Mismatch (Y and carry) op=%b A=%b B=%b -> module: Y=%b carry=%b Ref: Y=%b carry=%b",
-                                     _op, _A, _B, _Y, _carry, _Y_cmp, _carry_cmp);
+                            $display("FAIL (Y+carry) A=%b B=%b -> DUT: Y=%b carry=%b  Ref: Y=%b carry=%b",
+                                     _A, _B, _Y, _carry, _Y_cmp, _carry_cmp);
                         end
                         else if (_Y !== _Y_cmp) begin
                             y_mismatch[op_i] = y_mismatch[op_i] + 1;
-                            $display("Mismatch (Y only) op=%b A=%b B=%b -> module: Y=%b Ref: Y=%b carry=%b",
-                                     _op, _A, _B, _Y, _Y_cmp, _carry);
+                            $display("FAIL (Y only)  A=%b B=%b -> DUT: Y=%b          Ref: Y=%b",
+                                     _A, _B, _Y, _Y_cmp);
                         end
                         else begin
                             carry_mismatch[op_i] = carry_mismatch[op_i] + 1;
-                            $display("Mismatch (carry only) op=%b A=%b B=%b -> module: carry=%b Ref: carry=%b Y=%b",
-                                     _op, _A, _B, _carry, _carry_cmp, _Y);
+                            $display("FAIL (carry)   A=%b B=%b -> DUT: carry=%b      Ref: carry=%b  Y=%b",
+                                     _A, _B, _carry, _carry_cmp, _Y);
+                        end
+                    end
+                end
+            end
+
+            // Pass 2: if this opcode had errors, print all PASSes
+            if (y_mismatch[op_i] + carry_mismatch[op_i] + joined_mismatch[op_i] > 0) begin
+                $display("--- Correct combinations ---");
+                for (a = 0; a < 16; a = a + 1) begin
+                    for (b = 0; b < 16; b = b + 1) begin
+                        _op = op_i[2:0];
+                        _A  = a[3:0];
+                        _B  = b[3:0];
+
+                        #1;
+
+                        if ((_Y === _Y_cmp) && (_carry === _carry_cmp)) begin
+                            $display("PASS           A=%b B=%b -> Y=%b carry=%b",
+                                     _A, _B, _Y, _carry);
                         end
                     end
                 end
