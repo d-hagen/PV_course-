@@ -65,6 +65,9 @@ module alu_4bit_tb;
     );
 
     initial begin
+        $dumpfile("alu_4bit.vcd");
+        $dumpvars(0, alu_4bit_tb);
+
         errors = 0;
 
         for (i = 0; i < 8; i = i + 1) begin
