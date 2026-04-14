@@ -357,13 +357,7 @@ module scoreboard (
     input  wire [15:0] comb_ref_rd_data1,
     input  wire [15:0] comb_ref_rd_data2
 );
-    int pass_count, fail_count, comb_fail_count;
-
-    initial begin
-        pass_count      = 0;
-        fail_count      = 0;
-        comb_fail_count = 0;
-    end
+    int pass_count = 0, fail_count = 0, comb_fail_count = 0;
 
     task print_inputs;
         $display("         inputs: rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=%0h rd_addr1=%0d rd_addr2=%0d",
