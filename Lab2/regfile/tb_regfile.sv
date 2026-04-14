@@ -60,7 +60,8 @@ module directed_generator (
     output reg  [15:0] wr_data,
     output reg  [4:0]  rd_addr1,
     output reg  [4:0]  rd_addr2,
-    output reg  done
+    output reg  done,
+    output int  test_id
 );
     int cycle_num = 0;
 
@@ -84,14 +85,14 @@ module directed_generator (
 
     // write no reset
     task test_write_no_reset();
-        $display("=== test_write_no_reset ===");
+        test_id++;
         send(1, 1, 5,  16'hABCD, 1,  2);
         send(1, 0, 0,  0,        5,  2);
     endtask
 
     // write with reset — write 4 registers, then reset, verify all 4 read back as 0
     task test_write_with_reset();
-        $display("=== test_write_with_reset ===");
+        test_id++;
         send(1, 1, 3,  16'h1234, 1,  2);
         send(1, 1, 7,  16'hABCD, 1,  2);
         send(1, 1, 15, 16'hDEAD, 1,  2);
@@ -103,7 +104,7 @@ module directed_generator (
 
     // read no reset
     task test_read_no_reset();
-        $display("=== test_read_no_reset ===");
+        test_id++;
         send(1, 1, 10, 16'hDEAD, 1,  2);
         send(1, 1, 20, 16'hBEEF, 1,  2);
         send(1, 0, 0,  0,        10, 20);
@@ -111,7 +112,7 @@ module directed_generator (
 
     // read with reset
     task test_read_with_reset();
-        $display("=== test_read_with_reset ===");
+        test_id++;
         send(1, 1, 7,  16'hFFFF, 1,  2);
         send(0, 0, 0,  0,        7,  8);
         send(1, 0, 0,  0,        7,  8);
@@ -119,7 +120,7 @@ module directed_generator (
 
     // reset overrides write: rst_n=0 and wr_en=1 simultaneously — write must be suppressed
     task test_reset_overrides_write();
-        $display("=== test_reset_overrides_write ===");
+        test_id++;
         send(1, 1, 6,  16'hCAFE, 1,  2);  // write 0xCAFE to reg 6
         send(0, 1, 6,  16'h1234, 6,  2);  // rst_n=0, wr_en=1 — write suppressed, reset active
         send(1, 0, 0,  0,        6,  2);  // read reg 6 — expect 0 (reset), not 0x1234
@@ -127,28 +128,28 @@ module directed_generator (
 
     // error: rd/rd conflict
     task test_err_rd_rd();
-        $display("=== test_err_rd_rd ===");
+        test_id++;
         send(1, 0, 0,  0,        5,  5);
         send(1, 0, 0,  0,        1,  2);
     endtask
 
     // error: wr/rd conflict port 1
     task test_err_wr_rd1();
-        $display("=== test_err_wr_rd1 ===");
+        test_id++;
         send(1, 1, 4,  16'hAAAA, 4,  2);
         send(1, 0, 0,  0,        4,  2);  // read reg 4 — verify write was suppressed
     endtask
 
     // error: wr/rd conflict port 2
     task test_err_wr_rd2();
-        $display("=== test_err_wr_rd2 ===");
+        test_id++;
         send(1, 1, 8,  16'hBBBB, 1,  8);
         send(1, 0, 0,  0,        1,  8);  // read reg 8 — verify write was suppressed
     endtask
 
     // error then reset (rd/rd conflict)
     task test_err_rd_rd_with_reset();
-        $display("=== test_err_rd_rd_with_reset ===");
+        test_id++;
         send(1, 0, 0,  0,        5,  5);  // rd/rd conflict
         send(0, 0, 0,  0,        1,  2);  // reset clears err
         send(1, 0, 0,  0,        1,  2);  // verify err=0
@@ -156,7 +157,7 @@ module directed_generator (
 
     // error then reset (wr/rd conflict)
     task test_err_wr_rd_with_reset();
-        $display("=== test_err_wr_rd_with_reset ===");
+        test_id++;
         send(1, 1, 3,  16'hBEEF, 3,  2);  // wr/rd1 conflict
         send(0, 0, 0,  0,        1,  2);   // reset clears err
         send(1, 0, 0,  0,        3,  2);   // verify err=0, reg 3 not written
@@ -167,6 +168,7 @@ module directed_generator (
 
     initial begin
         done     = 0;
+        test_id  = 0;
         rst_n    = 0;
         wr_en    = 0;
         wr_addr  = 0;
@@ -348,24 +350,44 @@ module scoreboard (
     input  wire        dut_err,
     input  wire [15:0] ref_rd_data1,
     input  wire [15:0] ref_rd_data2,
-    input  wire        ref_err
+    input  wire        ref_err,
+    input  int         test_id
 );
     int pass_count = 0, fail_count = 0;
 
     int check_num = 0;
+    int delayed_tid;
+    int prev_tid = -1;
 
-    task print_context;
-        $display("         inputs : rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=0x%0h rd_addr1=%0d rd_addr2=%0d",
-                 rst_n, wr_en, wr_addr, wr_data, rd_addr1, rd_addr2);
-        $display("         outputs: DUT rd1=0x%0h rd2=0x%0h err=%0b | REF rd1=0x%0h rd2=0x%0h err=%0b",
-                 dut_rd_data1, dut_rd_data2, dut_err, ref_rd_data1, ref_rd_data2, ref_err);
-    endtask
+    string test_names [0:10];
+    initial begin
+        test_names[0]  = "init";
+        test_names[1]  = "test_write_no_reset";
+        test_names[2]  = "test_write_with_reset";
+        test_names[3]  = "test_read_no_reset";
+        test_names[4]  = "test_read_with_reset";
+        test_names[5]  = "test_reset_overrides_write";
+        test_names[6]  = "test_err_rd_rd";
+        test_names[7]  = "test_err_wr_rd1";
+        test_names[8]  = "test_err_wr_rd2";
+        test_names[9]  = "test_err_rd_rd_with_reset";
+        test_names[10] = "test_err_wr_rd_with_reset";
+    end
 
     // clocked checks
     bit rd1_ok, rd2_ok, err_ok;
 
     always_ff @(posedge clk) begin
+        delayed_tid <= test_id;
+
         if (valid) begin
+            if (delayed_tid !== prev_tid) begin
+                if (delayed_tid >= 1 && delayed_tid <= 10)
+                    $display("=== %s ===", test_names[delayed_tid]);
+                else
+                    $display("=== random_phase ===");
+                prev_tid = delayed_tid;
+            end
             rd1_ok = (dut_rd_data1 === ref_rd_data1);
             rd2_ok = (dut_rd_data2 === ref_rd_data2);
             err_ok = (dut_err === ref_err);
@@ -403,6 +425,7 @@ module tb_regfile;
     always #5 clk = ~clk;
 
     wire dir_done, rand_done;
+    int  dir_test_id;
 
     wire        dir_rst_n, dir_wr_en;
     wire [4:0]  dir_wr_addr, dir_rd_addr1, dir_rd_addr2;
@@ -416,7 +439,8 @@ module tb_regfile;
         .wr_data  (dir_wr_data),
         .rd_addr1 (dir_rd_addr1),
         .rd_addr2 (dir_rd_addr2),
-        .done     (dir_done)
+        .done     (dir_done),
+        .test_id  (dir_test_id)
     );
 
     wire        rand_rst_n, rand_wr_en;
@@ -538,7 +562,8 @@ module tb_regfile;
         .dut_err           (mon_dut_err),
         .ref_rd_data1      (mon_ref_rd_data1),
         .ref_rd_data2      (mon_ref_rd_data2),
-        .ref_err           (mon_ref_err)
+        .ref_err           (mon_ref_err),
+        .test_id           (dir_test_id)
     );
 
     always @(posedge rand_done) #1 $finish;
