@@ -78,8 +78,6 @@ module directed_generator (
         wr_data  = wr_data_i;
         rd_addr1 = rd_addr1_i;
         rd_addr2 = rd_addr2_i;
-        $display("  [cycle %0d, t=%0t] SEND: rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=0x%0h rd_addr1=%0d rd_addr2=%0d",
-                 cycle_num, $time, rst_n_i, wr_en_i, wr_addr_i, wr_data_i, rd_addr1_i, rd_addr2_i);
         @(posedge clk); #1;
         cycle_num++;
     endtask
@@ -352,34 +350,26 @@ module scoreboard (
     endtask
 
     // clocked checks
+    bit rd1_ok, rd2_ok, err_ok;
+
     always_ff @(posedge clk) begin
         if (valid) begin
-            if (dut_rd_data1 === ref_rd_data1)
-                pass_count++;
-            else begin
-                $display("FAIL [check %0d, t=%0t] rd_data1: DUT=0x%0h  expected=0x%0h",
-                         check_num, $time, dut_rd_data1, ref_rd_data1);
-                print_context();
-                fail_count++;
-            end
+            rd1_ok = (dut_rd_data1 === ref_rd_data1);
+            rd2_ok = (dut_rd_data2 === ref_rd_data2);
+            err_ok = (dut_err === ref_err);
 
-            if (dut_rd_data2 === ref_rd_data2)
-                pass_count++;
-            else begin
-                $display("FAIL [check %0d, t=%0t] rd_data2: DUT=0x%0h  expected=0x%0h",
-                         check_num, $time, dut_rd_data2, ref_rd_data2);
-                print_context();
-                fail_count++;
-            end
+            if (rd1_ok) pass_count++; else fail_count++;
+            if (rd2_ok) pass_count++; else fail_count++;
+            if (err_ok) pass_count++; else fail_count++;
 
-            if (dut_err === ref_err)
-                pass_count++;
-            else begin
-                $display("FAIL [check %0d, t=%0t] err: DUT=%0b  expected=%0b",
-                         check_num, $time, dut_err, ref_err);
-                print_context();
-                fail_count++;
-            end
+            $display("  [check %0d] SEND: rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=0x%0h rd_addr1=%0d rd_addr2=%0d",
+                     check_num, rst_n, wr_en, wr_addr, wr_data, rd_addr1, rd_addr2);
+            if (rd1_ok && rd2_ok && err_ok)
+                $display("    PASS: rd1=0x%0h rd2=0x%0h err=%0b",
+                         dut_rd_data1, dut_rd_data2, dut_err);
+            else
+                $display("    FAIL: DUT rd1=0x%0h rd2=0x%0h err=%0b | expected rd1=0x%0h rd2=0x%0h err=%0b",
+                         dut_rd_data1, dut_rd_data2, dut_err, ref_rd_data1, ref_rd_data2, ref_err);
 
             check_num++;
         end
