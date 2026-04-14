@@ -150,19 +150,18 @@ module directed_generator (
     // error then reset (rd/rd conflict)
     task test_err_rd_rd_with_reset();
         test_id++;
-        send(1, 0, 0,  0,        5,  5);  // rd/rd conflict
-        send(0, 0, 0,  0,        1,  2);  // reset clears err
-        send(1, 0, 0,  0,        1,  2);  // verify err=0
+        send(0, 0, 0,  0,        5,  5);  // rd/rd conflict
+        send(1, 0, 0,  0,        1,  2);  // reset clears err
     endtask
 
     // error then reset (wr/rd conflict)
     task test_err_wr_rd_with_reset();
         test_id++;
-        send(1, 1, 3,  16'hBEEF, 3,  2);  // wr/rd1 conflict
-        send(0, 0, 0,  0,        1,  2);   // reset clears err
+        send(0, 1, 3,  16'hBEEF, 3,  2);  // wr/rd1 conflict
+        send(1, 0, 0,  0,        1,  2);   // reset clears err
         send(1, 0, 0,  0,        3,  2);   // verify err=0, reg 3 not written
-        send(1, 1, 7,  16'hCAFE, 1,  7);   // wr/rd2 conflict
-        send(0, 0, 0,  0,        1,  2);   // reset clears err
+        send(0, 1, 7,  16'hCAFE, 1,  7);   // wr/rd2 conflict
+        send(1, 0, 0,  0,        1,  2);   // reset clears err
         send(1, 0, 0,  0,        1,  7);   // verify err=0, reg 7 not written
     endtask
 
