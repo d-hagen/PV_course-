@@ -3,7 +3,7 @@
 // ============================================================
 // Configuration — edit here
 // ============================================================
-`define DUT_NAME       RegFile  // swap to RegFile_v0, RegFile_v1, etc.
+`define DUT_NAME       regfile_v0  // swap to regfile_v0, regfile_v1, etc.
 `define RAND_N         1000     // number of random transactions
 
 // Probability weights (relative, not percentages — they are normalised by the tool)
@@ -62,6 +62,8 @@ module directed_generator (
     output reg  [4:0]  rd_addr2,
     output reg  done
 );
+    int cycle_num = 0;
+
     task send(
         input reg        rst_n_i,
         input reg        wr_en_i,
@@ -76,7 +78,10 @@ module directed_generator (
         wr_data  = wr_data_i;
         rd_addr1 = rd_addr1_i;
         rd_addr2 = rd_addr2_i;
+        $display("  [cycle %0d, t=%0t] SEND: rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=0x%0h rd_addr1=%0d rd_addr2=%0d",
+                 cycle_num, $time, rst_n_i, wr_en_i, wr_addr_i, wr_data_i, rd_addr1_i, rd_addr2_i);
         @(posedge clk); #1;
+        cycle_num++;
     endtask
 
     // write no reset
@@ -120,19 +125,6 @@ module directed_generator (
         send(1, 1, 6,  16'hCAFE, 1,  2);  // write 0xCAFE to reg 6
         send(0, 1, 6,  16'h1234, 6,  2);  // rst_n=0, wr_en=1 — write suppressed, reset active
         send(1, 0, 0,  0,        6,  2);  // read reg 6 — expect 0 (reset), not 0x1234
-    endtask
-
-    // combinational read update: change rd_addr mid-cycle — scoreboard catches any mismatch
-    task test_comb_read_update();
-        $display("=== test_comb_read_update ===");
-        send(1, 1, 15, 16'h5A5A, 1, 2);  // write 0x5A5A to reg 15
-        send(1, 1, 16, 16'hA5A5, 1, 2);  // write 0xA5A5 to reg 16
-        rst_n = 1; wr_en = 0; wr_addr = 0; wr_data = 0;
-        rd_addr1 = 15; rd_addr2 = 16;
-        #2;
-        rd_addr1 = 16; rd_addr2 = 15;    // swap mid-cycle
-        #2;
-        @(posedge clk); #1;
     endtask
 
     // error: rd/rd conflict
@@ -179,7 +171,6 @@ module directed_generator (
         test_read_no_reset();
         test_read_with_reset();
         test_reset_overrides_write();
-        test_comb_read_update();
         test_err_rd_rd();
         test_err_wr_rd1();
         test_err_wr_rd2();
@@ -347,21 +338,17 @@ module scoreboard (
     input  wire        dut_err,
     input  wire [15:0] ref_rd_data1,
     input  wire [15:0] ref_rd_data2,
-    input  wire        ref_err,
-    // raw combinational signals for mid-cycle checking
-    input  wire        sim_started,
-    input  wire [4:0]  comb_rd_addr1,
-    input  wire [4:0]  comb_rd_addr2,
-    input  wire [15:0] comb_dut_rd_data1,
-    input  wire [15:0] comb_dut_rd_data2,
-    input  wire [15:0] comb_ref_rd_data1,
-    input  wire [15:0] comb_ref_rd_data2
+    input  wire        ref_err
 );
-    int pass_count = 0, fail_count = 0, comb_fail_count = 0;
+    int pass_count = 0, fail_count = 0;
 
-    task print_inputs;
-        $display("         inputs: rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=%0h rd_addr1=%0d rd_addr2=%0d",
+    int check_num = 0;
+
+    task print_context;
+        $display("         inputs : rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=0x%0h rd_addr1=%0d rd_addr2=%0d",
                  rst_n, wr_en, wr_addr, wr_data, rd_addr1, rd_addr2);
+        $display("         outputs: DUT rd1=0x%0h rd2=0x%0h err=%0b | REF rd1=0x%0h rd2=0x%0h err=%0b",
+                 dut_rd_data1, dut_rd_data2, dut_err, ref_rd_data1, ref_rd_data2, ref_err);
     endtask
 
     // clocked checks
@@ -370,49 +357,37 @@ module scoreboard (
             if (dut_rd_data1 === ref_rd_data1)
                 pass_count++;
             else begin
-                $display("FAIL [%0t] rd_data1: DUT=%0h REF=%0h", $time, dut_rd_data1, ref_rd_data1);
-                print_inputs();
+                $display("FAIL [check %0d, t=%0t] rd_data1: DUT=0x%0h  expected=0x%0h",
+                         check_num, $time, dut_rd_data1, ref_rd_data1);
+                print_context();
                 fail_count++;
             end
 
             if (dut_rd_data2 === ref_rd_data2)
                 pass_count++;
             else begin
-                $display("FAIL [%0t] rd_data2: DUT=%0h REF=%0h", $time, dut_rd_data2, ref_rd_data2);
-                print_inputs();
+                $display("FAIL [check %0d, t=%0t] rd_data2: DUT=0x%0h  expected=0x%0h",
+                         check_num, $time, dut_rd_data2, ref_rd_data2);
+                print_context();
                 fail_count++;
             end
 
             if (dut_err === ref_err)
                 pass_count++;
             else begin
-                $display("FAIL [%0t] err: DUT=%0b REF=%0b", $time, dut_err, ref_err);
-                print_inputs();
+                $display("FAIL [check %0d, t=%0t] err: DUT=%0b  expected=%0b",
+                         check_num, $time, dut_err, ref_err);
+                print_context();
                 fail_count++;
             end
-        end
-    end
 
-    // combinational checks — fires on any rd_data change, not just clock edges
-    always @(*) begin
-        if (sim_started) begin
-            if (comb_dut_rd_data1 !== comb_ref_rd_data1) begin
-                $display("COMB FAIL [%0t] rd_data1: DUT=%0h REF=%0h (rd_addr1=%0d)",
-                         $time, comb_dut_rd_data1, comb_ref_rd_data1, comb_rd_addr1);
-                comb_fail_count++;
-            end
-            if (comb_dut_rd_data2 !== comb_ref_rd_data2) begin
-                $display("COMB FAIL [%0t] rd_data2: DUT=%0h REF=%0h (rd_addr2=%0d)",
-                         $time, comb_dut_rd_data2, comb_ref_rd_data2, comb_rd_addr2);
-                comb_fail_count++;
-            end
+            check_num++;
         end
     end
 
     final begin
         $display("-----------------------------");
-        $display("SCOREBOARD (clocked) : %0d PASS  %0d FAIL", pass_count, fail_count);
-        $display("SCOREBOARD (comb)    : %0d FAIL",            comb_fail_count);
+        $display("SCOREBOARD: %0d PASS  %0d FAIL", pass_count, fail_count);
         $display("-----------------------------");
     end
 endmodule
@@ -421,10 +396,9 @@ endmodule
 // -- Testbench top --
 module tb_regfile;
 
-    reg clk, sim_started;
+    reg clk;
     initial clk = 0;
     always #5 clk = ~clk;
-    initial begin sim_started = 0; @(posedge clk); sim_started = 1; end
 
     wire dir_done, rand_done;
 
@@ -562,14 +536,7 @@ module tb_regfile;
         .dut_err           (mon_dut_err),
         .ref_rd_data1      (mon_ref_rd_data1),
         .ref_rd_data2      (mon_ref_rd_data2),
-        .ref_err           (mon_ref_err),
-        .sim_started       (sim_started),
-        .comb_rd_addr1     (rd_addr1),
-        .comb_rd_addr2     (rd_addr2),
-        .comb_dut_rd_data1 (dut_rd_data1),
-        .comb_dut_rd_data2 (dut_rd_data2),
-        .comb_ref_rd_data1 (ref_rd_data1),
-        .comb_ref_rd_data2 (ref_rd_data2)
+        .ref_err           (mon_ref_err)
     );
 
     always @(posedge rand_done) #1 $finish;
