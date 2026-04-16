@@ -416,6 +416,48 @@ module scoreboard (
 endmodule
 
 
+// -- Combinational Scoreboard --
+// Checks rd_data updates immediately when rd_addr changes (before next posedge).
+// A registered DUT would still show stale data here.
+module comb_scoreboard (
+    input  wire        clk,
+    input  wire        rst_n,
+    input  wire        wr_en,
+    input  wire [4:0]  wr_addr,
+    input  wire [15:0] wr_data,
+    input  wire [4:0]  rd_addr1,
+    input  wire [4:0]  rd_addr2,
+    input  wire [15:0] dut_rd_data1,
+    input  wire [15:0] dut_rd_data2,
+    input  wire [15:0] ref_rd_data1,
+    input  wire [15:0] ref_rd_data2
+);
+    reg active;
+    int fail_count = 0;
+    initial active = 0;
+    always @(posedge clk) active <= 1;
+
+    always @(rd_addr1 or rd_addr2) begin
+        #1;
+        if (active && !$isunknown(ref_rd_data1) && dut_rd_data1 !== ref_rd_data1) begin
+            $display("  FAIL [comb_read]: rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=0x%0h rd_addr1=%0d rd_addr2=%0d | port1 DUT=0x%0h expected=0x%0h",
+                     rst_n, wr_en, wr_addr, wr_data, rd_addr1, rd_addr2, dut_rd_data1, ref_rd_data1);
+            fail_count++;
+        end
+        if (active && !$isunknown(ref_rd_data2) && dut_rd_data2 !== ref_rd_data2) begin
+            $display("  FAIL [comb_read]: rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=0x%0h rd_addr1=%0d rd_addr2=%0d | port2 DUT=0x%0h expected=0x%0h",
+                     rst_n, wr_en, wr_addr, wr_data, rd_addr1, rd_addr2, dut_rd_data2, ref_rd_data2);
+            fail_count++;
+        end
+    end
+
+    final begin
+        if (fail_count > 0)
+            $display("COMB_READ: %0d FAIL", fail_count);
+    end
+endmodule
+
+
 // -- Testbench top --
 module tb_regfile;
 
@@ -563,6 +605,21 @@ module tb_regfile;
         .ref_rd_data2      (mon_ref_rd_data2),
         .ref_err           (mon_ref_err),
         .test_id           (dir_test_id)
+    );
+
+    // -- Combinational Scoreboard --
+    comb_scoreboard comb_sb (
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .wr_en        (wr_en),
+        .wr_addr      (wr_addr),
+        .wr_data      (wr_data),
+        .rd_addr1     (rd_addr1),
+        .rd_addr2     (rd_addr2),
+        .dut_rd_data1 (dut_rd_data1),
+        .dut_rd_data2 (dut_rd_data2),
+        .ref_rd_data1 (ref_rd_data1),
+        .ref_rd_data2 (ref_rd_data2)
     );
 
     always @(posedge rand_done) #1 $finish;
