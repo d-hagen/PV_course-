@@ -588,6 +588,10 @@ module tb_regfile;
         .test_id           (dir_test_id)
     );
 
-    always @(posedge rand_done) #1 $finish;
+    always @(posedge rand_done) begin
+        #1;
+        $display(""); // flush
+        $finish;
+    end
 
 endmodule
