@@ -3,12 +3,12 @@
 // ============================================================
 // Configuration 
 // ============================================================
-`define DUT_NAME       regfile_v1  // swap to regfile_v0, regfile_v1, etc.
+`define DUT_NAME       regfile_v0  // swap to regfile_v0, regfile_v1, etc.
 `define RAND_N         1000     // number of random transactions#
-`define comb_test      true     // enable combinational reads testing
+`define comb_test      1        // 1 = enable, 0 = disable combinational reads testing
 
 
-// Probability weights (relative, not percentages — they are normalised by the tool)
+// Probability weights 
 `define W_RST_LOW      5        // weight for rst_n=0
 `define W_RST_HIGH     95       // weight for rst_n=1
 `define W_WR_EN        80       // weight for wr_en=1
@@ -92,7 +92,6 @@ module directed_generator (
         send(1, 0, 0,  0,        5,  2);
     endtask
 
-    // write with reset — write 4 registers, then reset, verify all 4 read back as 0
     task test_write_with_reset();
         test_id++;
         send(1, 1, 3,  16'h1234, 1,  2);
@@ -207,7 +206,6 @@ class constraint_Specs;
     constraint c_rst_n  { rst_n dist {1'b0 := `W_RST_LOW,     1'b1 := `W_RST_HIGH}; }
     constraint c_wr_en  { wr_en dist {1'b1 := `W_WR_EN,       1'b0 := `W_NO_WR};   }
 
-    // 3% all-zeros, 2% all-ones, 95% uniform
     constraint c_wr_data {
         wr_data dist {16'h0000 := 3, 16'hFFFF := 2, [16'h0001:16'hFFFE] :/ 95};
     }
@@ -218,8 +216,6 @@ endclass
 
 
 // -- Random Generator --
-// starts on posedge start, prints seed for reproducibility
-// replay with: vsim +ntb_random_seed=<seed>
 module random_generator #(parameter N = 1000)(
     input  wire clk,
     input  wire start,
@@ -373,12 +369,12 @@ module scoreboard (
         test_names[10] = "test_err_wr_rd_with_reset";
     end
 
-    // combinational read check — fires between edges, sets flags
+    // combinational read check 
     reg comb_rd1_fail, comb_rd2_fail;
     initial begin comb_rd1_fail = 0; comb_rd2_fail = 0; end
 
     always @(rd_addr1 or rd_addr2) begin
-        if(comb_test) begin
+        if(`comb_test) begin
             #1;
             comb_rd1_fail = (valid && !$isunknown(ref_rd_data1) && dut_rd_data1 !== ref_rd_data1);
             comb_rd2_fail = (valid && !$isunknown(ref_rd_data2) && dut_rd_data2 !== ref_rd_data2);
@@ -413,9 +409,6 @@ module scoreboard (
                          dut_rd_data2, ref_rd_data2);
                 comb_fail_count++;
             end
-            comb_rd1_fail = 0;
-            comb_rd2_fail = 0;
-
             // 3. Clocked PASS/FAIL
             rd1_ok = (dut_rd_data1 === ref_rd_data1);
             rd2_ok = (dut_rd_data2 === ref_rd_data2);
