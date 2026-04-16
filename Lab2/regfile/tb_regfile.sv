@@ -1,10 +1,12 @@
 `timescale 1ns/1ps
 
 // ============================================================
-// Configuration — edit here
+// Configuration 
 // ============================================================
 `define DUT_NAME       regfile_v1  // swap to regfile_v0, regfile_v1, etc.
-`define RAND_N         1000     // number of random transactions
+`define RAND_N         1000     // number of random transactions#
+`define comb_test      true     // enable combinational reads testing
+
 
 // Probability weights (relative, not percentages — they are normalised by the tool)
 `define W_RST_LOW      5        // weight for rst_n=0
@@ -287,7 +289,7 @@ module driver (
 endmodule
 
 
-// -- Monitor --
+// -- Monitor (combinational pass-through) --
 module monitor (
     input  wire        clk,
     input  wire        rst_n,
@@ -302,35 +304,33 @@ module monitor (
     input  wire [15:0] ref_rd_data1,
     input  wire [15:0] ref_rd_data2,
     input  wire        ref_err,
-    output reg         out_rst_n,
-    output reg         out_wr_en,
-    output reg  [4:0]  out_wr_addr,
-    output reg  [15:0] out_wr_data,
-    output reg  [4:0]  out_rd_addr1,
-    output reg  [4:0]  out_rd_addr2,
-    output reg  [15:0] out_dut_rd_data1,
-    output reg  [15:0] out_dut_rd_data2,
-    output reg         out_dut_err,
-    output reg  [15:0] out_ref_rd_data1,
-    output reg  [15:0] out_ref_rd_data2,
-    output reg         out_ref_err,
+    output wire        out_rst_n,
+    output wire        out_wr_en,
+    output wire [4:0]  out_wr_addr,
+    output wire [15:0] out_wr_data,
+    output wire [4:0]  out_rd_addr1,
+    output wire [4:0]  out_rd_addr2,
+    output wire [15:0] out_dut_rd_data1,
+    output wire [15:0] out_dut_rd_data2,
+    output wire        out_dut_err,
+    output wire [15:0] out_ref_rd_data1,
+    output wire [15:0] out_ref_rd_data2,
+    output wire        out_ref_err,
     output reg         valid
 );
-    always_ff @(posedge clk) begin
-        out_rst_n        <= rst_n;
-        out_wr_en        <= wr_en;
-        out_wr_addr      <= wr_addr;
-        out_wr_data      <= wr_data;
-        out_rd_addr1     <= rd_addr1;
-        out_rd_addr2     <= rd_addr2;
-        out_dut_rd_data1 <= dut_rd_data1;
-        out_dut_rd_data2 <= dut_rd_data2;
-        out_dut_err      <= dut_err;
-        out_ref_rd_data1 <= ref_rd_data1;
-        out_ref_rd_data2 <= ref_rd_data2;
-        out_ref_err      <= ref_err;
-        valid            <= 1'b1;
-    end
+    assign out_rst_n        = rst_n;
+    assign out_wr_en        = wr_en;
+    assign out_wr_addr      = wr_addr;
+    assign out_wr_data      = wr_data;
+    assign out_rd_addr1     = rd_addr1;
+    assign out_rd_addr2     = rd_addr2;
+    assign out_dut_rd_data1 = dut_rd_data1;
+    assign out_dut_rd_data2 = dut_rd_data2;
+    assign out_dut_err      = dut_err;
+    assign out_ref_rd_data1 = ref_rd_data1;
+    assign out_ref_rd_data2 = ref_rd_data2;
+    assign out_ref_err      = ref_err;
+    always_ff @(posedge clk) valid <= 1'b1;
 endmodule
 
 
@@ -353,9 +353,9 @@ module scoreboard (
     input  int         test_id
 );
     int pass_count = 0, fail_count = 0;
+    int comb_fail_count = 0;
 
     int check_num = 0;
-    int delayed_tid;
     int prev_tid = -1;
 
     string test_names [0:10];
@@ -373,20 +373,50 @@ module scoreboard (
         test_names[10] = "test_err_wr_rd_with_reset";
     end
 
+    // combinational read check — fires between edges, sets flags
+    reg comb_rd1_fail, comb_rd2_fail;
+    initial begin comb_rd1_fail = 0; comb_rd2_fail = 0; end
+
+    always @(rd_addr1 or rd_addr2) begin
+        if(comb_test) begin
+            #1;
+            comb_rd1_fail = (valid && !$isunknown(ref_rd_data1) && dut_rd_data1 !== ref_rd_data1);
+            comb_rd2_fail = (valid && !$isunknown(ref_rd_data2) && dut_rd_data2 !== ref_rd_data2);
+        end
+    end
+
     // clocked checks
     bit rd1_ok, rd2_ok, err_ok;
 
     always_ff @(posedge clk) begin
-        delayed_tid <= test_id;
-
         if (valid) begin
-            if (delayed_tid !== prev_tid) begin
-                if (delayed_tid >= 1 && delayed_tid <= 10)
-                    $display("=== %s ===", test_names[delayed_tid]);
+            if (test_id !== prev_tid) begin
+                if (test_id >= 1 && test_id <= 10)
+                    $display("=== %s ===", test_names[test_id]);
                 else
                     $display("=== random_phase ===");
-                prev_tid = delayed_tid;
+                prev_tid = test_id;
             end
+
+            // 1. SEND
+            $display("  [check %0d] SEND: rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=0x%0h rd_addr1=%0d rd_addr2=%0d",
+                     check_num, rst_n, wr_en, wr_addr, wr_data, rd_addr1, rd_addr2);
+
+            // 2. Combinational read result (only on failure)
+            if (comb_rd1_fail) begin
+                $display("    FAIL [comb_read]: port1 DUT=0x%0h expected=0x%0h",
+                         dut_rd_data1, ref_rd_data1);
+                comb_fail_count++;
+            end
+            if (comb_rd2_fail) begin
+                $display("    FAIL [comb_read]: port2 DUT=0x%0h expected=0x%0h",
+                         dut_rd_data2, ref_rd_data2);
+                comb_fail_count++;
+            end
+            comb_rd1_fail = 0;
+            comb_rd2_fail = 0;
+
+            // 3. Clocked PASS/FAIL
             rd1_ok = (dut_rd_data1 === ref_rd_data1);
             rd2_ok = (dut_rd_data2 === ref_rd_data2);
             err_ok = (dut_err === ref_err);
@@ -395,8 +425,6 @@ module scoreboard (
             if (rd2_ok) pass_count++; else fail_count++;
             if (err_ok) pass_count++; else fail_count++;
 
-            $display("  [check %0d] SEND: rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=0x%0h rd_addr1=%0d rd_addr2=%0d",
-                     check_num, rst_n, wr_en, wr_addr, wr_data, rd_addr1, rd_addr2);
             if (rd1_ok && rd2_ok && err_ok)
                 $display("    PASS: rd1=0x%0h rd2=0x%0h err=%0b",
                          dut_rd_data1, dut_rd_data2, dut_err);
@@ -411,49 +439,9 @@ module scoreboard (
     final begin
         $display("-----------------------------");
         $display("SCOREBOARD: %0d PASS  %0d FAIL", pass_count, fail_count);
+        if (comb_fail_count > 0)
+            $display("COMB_READ: %0d FAIL", comb_fail_count);
         $display("-----------------------------");
-    end
-endmodule
-
-
-// -- Combinational Scoreboard --
-// Checks rd_data updates immediately when rd_addr changes (before next posedge).
-// A registered DUT would still show stale data here.
-module comb_scoreboard (
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        wr_en,
-    input  wire [4:0]  wr_addr,
-    input  wire [15:0] wr_data,
-    input  wire [4:0]  rd_addr1,
-    input  wire [4:0]  rd_addr2,
-    input  wire [15:0] dut_rd_data1,
-    input  wire [15:0] dut_rd_data2,
-    input  wire [15:0] ref_rd_data1,
-    input  wire [15:0] ref_rd_data2
-);
-    reg active;
-    int fail_count = 0;
-    initial active = 0;
-    always @(posedge clk) active <= 1;
-
-    always @(rd_addr1 or rd_addr2) begin
-        #1;
-        if (active && !$isunknown(ref_rd_data1) && dut_rd_data1 !== ref_rd_data1) begin
-            $display("  FAIL [comb_read]: rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=0x%0h rd_addr1=%0d rd_addr2=%0d | port1 DUT=0x%0h expected=0x%0h",
-                     rst_n, wr_en, wr_addr, wr_data, rd_addr1, rd_addr2, dut_rd_data1, ref_rd_data1);
-            fail_count++;
-        end
-        if (active && !$isunknown(ref_rd_data2) && dut_rd_data2 !== ref_rd_data2) begin
-            $display("  FAIL [comb_read]: rst_n=%0b wr_en=%0b wr_addr=%0d wr_data=0x%0h rd_addr1=%0d rd_addr2=%0d | port2 DUT=0x%0h expected=0x%0h",
-                     rst_n, wr_en, wr_addr, wr_data, rd_addr1, rd_addr2, dut_rd_data2, ref_rd_data2);
-            fail_count++;
-        end
-    end
-
-    final begin
-        if (fail_count > 0)
-            $display("COMB_READ: %0d FAIL", fail_count);
     end
 endmodule
 
@@ -605,21 +593,6 @@ module tb_regfile;
         .ref_rd_data2      (mon_ref_rd_data2),
         .ref_err           (mon_ref_err),
         .test_id           (dir_test_id)
-    );
-
-    // -- Combinational Scoreboard --
-    comb_scoreboard comb_sb (
-        .clk          (clk),
-        .rst_n        (rst_n),
-        .wr_en        (wr_en),
-        .wr_addr      (wr_addr),
-        .wr_data      (wr_data),
-        .rd_addr1     (rd_addr1),
-        .rd_addr2     (rd_addr2),
-        .dut_rd_data1 (dut_rd_data1),
-        .dut_rd_data2 (dut_rd_data2),
-        .ref_rd_data1 (ref_rd_data1),
-        .ref_rd_data2 (ref_rd_data2)
     );
 
     always @(posedge rand_done) #1 $finish;

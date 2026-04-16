@@ -57,9 +57,11 @@ The DUT is a simple Register file with  32 entries, each 16 bits wide . It has1 
 
 * **Driver** — muxes directed/random stimulus onto DUT and reference model inputs; switches to random on `dir_done`
 
-* **Monitor** — samples all DUT and reference outputs on each rising clock edge; introduces 1-cycle pipeline delay before forwarding to scoreboard
+* **Monitor** — combinational pass-through of all DUT and reference signals; provides a `valid` flag (registered, high after first posedge) to gate scoreboard checks during initialization
 
-* **Scoreboard** — clocked check on each posedge: compares `rd_data1`, `rd_data2`, `err` between DUT and reference; separate combinational `always @(*)` check catches `rd_data` mismatches mid-cycle (used to verify combinational read-address updates)
+* **Scoreboard** — performs two levels of checking per cycle:
+    1. **Combinational read check** — between clock edges check whenever a read address changes, compares DUT `rd_data` against the reference  1 ns after clock cycle start.  This catches DUTs which reads are not combinational
+    2. **Clocked check** — clocked check on each posedge: compares `rd_data1`, `rd_data2`, `err` between DUT and reference;
 
 ### 4. Coverage Goals
 
@@ -82,10 +84,14 @@ Not covered exhaustively:
 
 
 
-### 5. Pass/Fail Criteria
+### 5. Bug Table
 
-
-
+| Design | Bug | Expected Behavior | Observed Behavior |
+|---|---|---|---|
+| **regfile_v1** | rd/rd conflict not detected | `rd_addr1 == rd_addr2` → X on both read ports, `err=1` next cycle | Normal read data returned, `err` stays 0 |
+| **regfile_v2** | X outputs delayed by one cycle (rd/rd conflict) | X on read ports immediately when `rd_addr1 == rd_addr2` | Read ports show valid data during the conflict cycle; X appears only on the next cycle (when `err` is high) |
+| **regfile_v2** | X outputs delayed by one cycle (wr/rd conflict) | X on read ports immediately when `wr_addr` matches a read port | Read ports show valid data during the conflict cycle; X appears only on the next cycle (when `err` is high) |
+| **regfile_v3** | wr/rd conflict does not suppress write | Write must be blocked when `wr_addr` matches a read port address | Write goes through despite the conflict; register is updated |
 
 
 
