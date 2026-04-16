@@ -429,13 +429,13 @@ module scoreboard (
         end
     end
 
-    final begin
+    task print_summary();
         $display("-----------------------------");
         $display("SCOREBOARD: %0d PASS  %0d FAIL", pass_count, fail_count);
         if (comb_fail_count > 0)
             $display("COMB_READ: %0d FAIL", comb_fail_count);
         $display("-----------------------------");
-    end
+    endtask
 endmodule
 
 
@@ -590,7 +590,7 @@ module tb_regfile;
 
     always @(posedge rand_done) begin
         #1;
-        $display(""); // flush
+        sb.print_summary();
         $finish;
     end
 
