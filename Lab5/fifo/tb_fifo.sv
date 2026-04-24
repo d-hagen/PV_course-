@@ -63,6 +63,12 @@ module tb_fifo;
       rd_en = 1;
     end
 
+    repeat (1) begin
+      @(posedge clk);
+      wr_en = 1;
+      rd_en = 1;
+    end
+
 
 
     // ADD ADDITIONAL STIMULUS AS NEEDED HERE
