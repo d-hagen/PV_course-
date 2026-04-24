@@ -27,7 +27,7 @@
 
 \subsection*{Task 1}
 
-\subsubsection*{Covergroup Bins}
+\subsubsection*{Question 1.1: Covergroup Bins}
 
 The testbench defines one \texttt{covergroup} (\texttt{fifo\_cov}) and one \texttt{cover property} directive. In total there are \textbf{13 covergroup bins + 1 cover directive}.
 
@@ -73,7 +73,7 @@ The testbench defines one \texttt{covergroup} (\texttt{fifo\_cov}) and one \text
   \item \texttt{cover property (becomes\_empty\_after\_read)} --- covers the sequence where the FIFO transitions to empty after a read when \texttt{dut.count > 0}.
 \end{enumerate}
 
-\subsubsection*{Bins Covered After Reset Only}
+\subsubsection*{Question 1.2: Bins Covered After Reset Only}
 
 The following \textbf{5 bins} are covered just from reset:
 
@@ -87,7 +87,7 @@ The following \textbf{5 bins} are covered just from reset:
 
 \subsection*{Task 2}
 
-\subsubsection*{Additionally Covered Bins}
+\subsubsection*{Question 2.1: Additionally Covered Bins}
 
 After enabling the provided stimulus, the following \textbf{5 additional bins} are now covered:
 
