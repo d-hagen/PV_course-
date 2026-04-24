@@ -112,6 +112,7 @@ module tb_fetch_unit;
 
   assert property (
     @(posedge clk)
+    disable iff (!rst_n)
     dut.pc <= 8'hFF
   ) else $error("PC out of range");
 

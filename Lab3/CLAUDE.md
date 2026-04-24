@@ -33,7 +33,5 @@ The units are **not integrated** — each testbench drives its DUT independently
 
 Assertions are written inline at the bottom of each `tb_*.sv` file (not in separate bind modules).
 
-- **fetch_unit**: 6 assertions fully implemented (reset, branch, pc_en, hold, mem consistency, PC range).
-- **decode_unit**: 2 of 7 assertions implemented. `assertion_plan.md` tracks the full plan with SV sketches for the remaining TODOs (#3 field capture, #5 field stability, #6 reset, #7 hazard detection).
 
-When writing SVA for this project: use `disable iff (!rst_n)` for non-reset assertions, access internal DUT signals via `dut.<signal>`, and use concurrent (`assert property`) not immediate assertions.
+

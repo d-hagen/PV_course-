@@ -80,6 +80,18 @@ module tb_decode_unit;
     $display("[%0t] TEST #5: decode_done=%b, opcode=%0h, rd=%0h, rs=%0h, imm=%0h",
              $time, decode_done, opcode, rd, rs, imm);
 
+    // Back-to-back instructions (no hazard) — test overwrite behavior
+    instr = 16'h5C31; // opcode=5, rd=C, rs=3, imm=1
+    instr_valid = 1;
+    @(posedge clk);
+    // Second instruction immediately, no hazard (rs=4 != last_rd=C)
+    instr = 16'h6D41; // opcode=6, rd=D, rs=4, imm=1
+    @(posedge clk);
+    instr_valid = 0;
+    repeat (3) @(posedge clk);
+    $display("[%0t] TEST #6 (back-to-back): decode_done=%b, opcode=%0h, rd=%0h, rs=%0h, imm=%0h",
+             $time, decode_done, opcode, rd, rs, imm);
+
     // Finish
     #20;
     $display("[%0t] TEST COMPLETE.", $time);
@@ -91,14 +103,13 @@ module tb_decode_unit;
 
    // ASSERTIONS
 
+    // #1 Decode latency: clean acceptance with no interruption → decode_done 2 cycles later
 
-
-    // #1 Decode latency: acceptance leads to decode_done exactly 2 cycles later (no stall)
     assert property (
       @(posedge clk)
       disable iff (!rst_n)
-      (instr_valid && !dut.hazard_stall_next) |-> !hazard_stall [*2] ##1 decode_done
-    ) else $error("decode_done not asserted 2 cycles after acceptance while no hazards stalled");
+      (instr_valid && !dut.hazard_stall_next ) |-> ##1 !instr_valid ##1 decode_done
+    ) else $error("decode_done not asserted 2 cycles after clean, uninterrupted acceptance");
 
     // #2 No decode_done during stall
     assert property (
@@ -118,16 +129,16 @@ module tb_decode_unit;
         (imm    == $past(instr[3:0]))
     ) else $error("fields not captured correctly on acceptance");
 
-    // #4 Field stability during stall
+    // #4 Field stability during hazard assertion
     assert property (
       @(posedge clk)
       disable iff (!rst_n)
-      (instr_valid && hazard_stall) |=>
+      (instr_valid && dut.hazard_stall_next) |=>
         (opcode == $past(opcode)) &&
         (rd     == $past(rd))     &&
         (rs     == $past(rs))     &&
         (imm    == $past(imm))
-    ) else $error("fields changed during stall");
+    ) else $error("fields changed during assertion");
 
     // #5 Reset clears all outputs
     assert property (
@@ -142,6 +153,13 @@ module tb_decode_unit;
       disable iff (!rst_n)
       (instr_valid && (instr[7:4] == dut.last_rd)) |=> hazard_stall
     ) else $error("hazard_stall not asserted when rs matches previous rd");
+
+    // #7 decode_done is a single-cycle pulse
+    assert property (
+      @(posedge clk)
+      disable iff (!rst_n)
+      decode_done |=> !decode_done
+    ) else $error("decode_done asserted for more than one cycle");
 
 
 endmodule

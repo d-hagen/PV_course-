@@ -42,7 +42,7 @@ module tb_fifo;
     @(posedge clk);
     wait (rst_n);
 
-/*
+
     // Stimulus
     repeat (5) begin
       @(posedge clk);
@@ -62,7 +62,7 @@ module tb_fifo;
       wr_en = 0;
       rd_en = 1;
     end
-*/
+
 
     // ADD ADDITIONAL STIMULUS AS NEEDED HERE
 
