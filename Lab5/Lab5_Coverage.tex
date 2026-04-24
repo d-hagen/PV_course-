@@ -1,0 +1,88 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+
+\lstset{
+  language=Verilog,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue}\bfseries,
+  commentstyle=\color{gray},
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray}
+}
+
+\title{\textbf{Lab 5 --- Coverage}}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{FIFO}
+
+\subsection{Task 1}
+
+\subsubsection{Question 1.1: Covergroup Bins}
+
+The testbench defines one \texttt{covergroup} (\texttt{fifo\_cov}) and one \texttt{cover property} directive. In total there are \textbf{13 covergroup bins + 1 cover directive}.
+
+\paragraph*{Coverpoint \texttt{full} (1 bin)}
+\begin{enumerate}[label=\arabic*.]
+  \item \texttt{went\_full} --- bin for \texttt{full == 1}
+\end{enumerate}
+
+\paragraph*{Coverpoint \texttt{empty} (1 bin)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{went\_empty} --- bin for \texttt{empty == 1}
+\end{enumerate}
+
+\paragraph*{Coverpoint \texttt{dut.count} (3 bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{empty\_bin} --- occupancy equals 0
+  \item \texttt{mid\_bins} --- occupancy in range \texttt{[1 : DEPTH-1]}
+  \item \texttt{full\_bin} --- occupancy equals \texttt{DEPTH}
+\end{enumerate}
+
+\paragraph*{Coverpoint \texttt{wr\_en} (2 auto-bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{auto[0]} --- \texttt{wr\_en == 0}
+  \item \texttt{auto[1]} --- \texttt{wr\_en == 1}
+\end{enumerate}
+
+\paragraph*{Coverpoint \texttt{rd\_en} (2 auto-bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{auto[0]} --- \texttt{rd\_en == 0}
+  \item \texttt{auto[1]} --- \texttt{rd\_en == 1}
+\end{enumerate}
+
+\paragraph*{Cross \texttt{wr\_en} $\times$ \texttt{rd\_en} (4 bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{write\_only} --- \texttt{wr\_en=1, rd\_en=0}
+  \item \texttt{read\_only} --- \texttt{wr\_en=0, rd\_en=1}
+  \item \texttt{both\_off} --- \texttt{wr\_en=0, rd\_en=0}
+  \item \texttt{illegal} --- \texttt{wr\_en=1, rd\_en=1}
+\end{enumerate}
+
+\paragraph*{Cover Directive (+1)}
+\begin{enumerate}[resume, label={D1.}]
+  \item \texttt{cover property (becomes\_empty\_after\_read)} --- covers the sequence where the FIFO transitions to empty after a read when \texttt{dut.count > 0}.
+\end{enumerate}
+
+\subsubsection{Question 1.2: Bins Covered After Reset Only}
+
+The following \textbf{5 bins} are covered just from reset:
+
+\begin{enumerate}
+  \item \texttt{went\_empty} --- after reset the FIFO is empty, so \texttt{empty == 1}
+  \item \texttt{empty\_bin} --- \texttt{dut.count == 0} after reset
+  \item \texttt{wr\_en auto[0]} --- \texttt{wr\_en} stays 0
+  \item \texttt{rd\_en auto[0]} --- \texttt{rd\_en} stays 0
+  \item \texttt{both\_off} --- cross bin where \texttt{wr\_en=0, rd\_en=0}
+\end{enumerate}
+
+\end{document}
