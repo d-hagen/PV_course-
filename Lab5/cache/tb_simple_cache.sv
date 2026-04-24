@@ -4,6 +4,26 @@ module tb_simple_cache;
     // Parameters
     parameter ADDR_WIDTH = 8;
     parameter DATA_WIDTH = 32;
+    parameter CACHE_LINES = 16;
+    parameter LINE_SIZE   = 4;
+
+    // Derived widths (mirror DUT)
+    localparam INDEX_WIDTH  = $clog2(CACHE_LINES);
+    localparam OFFSET_WIDTH = $clog2(LINE_SIZE);
+    localparam TAG_WIDTH    = ADDR_WIDTH - INDEX_WIDTH - OFFSET_WIDTH;
+
+    // 10% thresholds for bin ranges
+    localparam INDEX_MAX    = (1 << INDEX_WIDTH) - 1;
+    localparam INDEX_LO     = INDEX_MAX / 10;
+    localparam INDEX_HI     = INDEX_MAX - INDEX_LO;
+
+    localparam TAG_MAX      = (1 << TAG_WIDTH) - 1;
+    localparam TAG_LO       = TAG_MAX / 10;
+    localparam TAG_HI       = TAG_MAX - TAG_LO;
+
+    localparam OFFSET_MAX   = (1 << OFFSET_WIDTH) - 1;
+    localparam OFFSET_LO    = OFFSET_MAX / 10;
+    localparam OFFSET_HI    = OFFSET_MAX - OFFSET_LO;
 
     // DUT signals
     logic clk, reset;
@@ -51,6 +71,78 @@ module tb_simple_cache;
         $finish;
     end
 
-    // ADD COVERAGE STATEMENTS HERE
+     // Functional coverage
+    covergroup cache_cov @(posedge clk);
+        option.per_instance = 1;
+
+
+
+
+
+
+
+         // Cover read/write activity
+        coverpoint write;
+        coverpoint read;
+        coverpoint hit;
+
+
+
+        cross write, read {
+            bins write_only     =   binsof(write) intersect {1} &&
+                                    binsof(read) intersect {0};
+            bins read_only      =   binsof(write) intersect {0} &&
+                                    binsof(read) intersect {1};
+            bins both_off       =   binsof(write) intersect {0} &&
+                                    binsof(read) intersect {0};
+            bins read_over_write =  binsof(write) intersect {1} &&
+                                    binsof(read) intersect {1};
+            }
+        
+
+        cross write, hit {
+            bins write_hit  = binsof(write) intersect {1} &&
+                              binsof(hit) intersect {0};
+            bins write_miss = binsof(write) intersect {0} &&
+                              binsof(hit) intersect {1};
+            }
+
+        cross read, hit {
+            bins read_hit  = binsof(read) intersect {1} &&
+                              binsof(hit) intersect {0};
+            bins read_miss = binsof(read) intersect {0} &&
+                              binsof(hit) intersect {1};
+            }
+
+ 
+
+        coverpoint (read && !hit && dut.valid_array[dut.index]) {
+            bins read_replace = {1};
+        }
+
+        coverpoint (write && dut.valid_array[dut.index] && (dut.tag_array[dut.index] != dut.tag)) {
+            bins write_replace = {1};
+        }
+
+
+        coverpoint dut.tag {
+            bins lower_bins = {[0:TAG_LO]};
+            bins mid_bins   = {[TAG_LO+1:TAG_HI-1]};
+            bins high_bins  = {[TAG_HI:TAG_MAX]};
+        }
+
+        coverpoint dut.index {
+            bins lower_bins = {[0:INDEX_LO]};
+            bins mid_bins   = {[INDEX_LO+1:INDEX_HI-1]};
+            bins high_bins  = {[INDEX_HI:INDEX_MAX]};
+        }
+
+        coverpoint dut.offset {                                      
+            bins lower_bins = {[0:OFFSET_LO]};                
+            bins mid_bins   = {[OFFSET_LO+1:OFFSET_HI-1]};    
+            bins high_bins  = {[OFFSET_HI:OFFSET_MAX]};       
+        }      
+
+    endgroup
 
 endmodule
