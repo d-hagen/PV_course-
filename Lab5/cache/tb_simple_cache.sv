@@ -146,7 +146,7 @@ module tb_simple_cache;
     endgroup
 
 
-    fifo_cov cache_cov = new();
+    cache_cov cov_inst = new();
 
 
 endmodule
