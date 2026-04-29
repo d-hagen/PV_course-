@@ -140,7 +140,7 @@ Added stimulus that asserts \texttt{wr\_en=1} and \texttt{rd\_en=1} simultaneous
 
 \subsubsection*{Covergroup Bins}
 
-The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) and six \texttt{cover property} directives. In total there are \textbf{23 covergroup bins + 6 cover directives}.
+The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) and six \texttt{cover property} directives. In total there are \textbf{25 covergroup bins + 6 cover directives}.
 
 \paragraph*{Coverpoint \texttt{write} (2 auto-bins)}
 \begin{enumerate}[label=\arabic*.]
@@ -154,10 +154,12 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) and six \tex
   \item \texttt{auto[1]} --- \texttt{read == 1}
 \end{enumerate}
 
-\paragraph*{Coverpoint \texttt{hit} (2 auto-bins)}
+\paragraph*{Coverpoint \texttt{hit} (4 transition bins)}
 \begin{enumerate}[resume, label=\arabic*.]
-  \item \texttt{auto[0]} --- \texttt{hit == 0}
-  \item \texttt{auto[1]} --- \texttt{hit == 1}
+  \item \texttt{zero\_to\_one} --- hit transitions $0 \Rightarrow 1$ (miss to hit)
+  \item \texttt{one\_to\_zero} --- hit transitions $1 \Rightarrow 0$ (hit to miss)
+  \item \texttt{stays\_hit} --- hit stays $1 \Rightarrow 1$ (consecutive hits)
+  \item \texttt{stays\_miss} --- hit stays $0 \Rightarrow 0$ (consecutive misses)
 \end{enumerate}
 
 \paragraph*{Cross \texttt{write} $\times$ \texttt{read} (4 bins)}

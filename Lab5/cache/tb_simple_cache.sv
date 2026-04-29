@@ -84,7 +84,12 @@ module tb_simple_cache;
          // Cover read/write activity
         coverpoint write;
         coverpoint read;
-        coverpoint hit;
+        coverpoint hit {
+            bins zero_to_one = (0 => 1);
+            bins one_to_zero = (1 => 0);
+            bins stays_hit   = (1 => 1);
+            bins stays_miss  = (0 => 0);
+        } //sticky hit ?
 
 
 
@@ -128,11 +133,11 @@ module tb_simple_cache;
             bins high_bins  = {[INDEX_HI:INDEX_MAX]};
         }
 
-        coverpoint dut.offset {                                      
-            bins lower_bins = {[0:OFFSET_LO]};                
-            bins mid_bins   = {[OFFSET_LO+1:OFFSET_HI-1]};    
-            bins high_bins  = {[OFFSET_HI:OFFSET_MAX]};       
-        }      
+        coverpoint dut.offset {
+            bins lower_bins = {[0:OFFSET_LO]};
+            bins mid_bins   = {[OFFSET_LO+1:OFFSET_HI-1]};
+            bins high_bins  = {[OFFSET_HI:OFFSET_MAX]};
+        }
 
     endgroup
 
