@@ -102,28 +102,19 @@ module tb_simple_cache;
 
         cross write, hit {
             bins write_hit  = binsof(write) intersect {1} &&
-                              binsof(hit) intersect {0};
-            bins write_miss = binsof(write) intersect {0} &&
                               binsof(hit) intersect {1};
+            bins write_miss = binsof(write) intersect {1} &&
+                              binsof(hit) intersect {0};
             }
 
         cross read, hit {
             bins read_hit  = binsof(read) intersect {1} &&
-                              binsof(hit) intersect {0};
-            bins read_miss = binsof(read) intersect {0} &&
                               binsof(hit) intersect {1};
+            bins read_miss = binsof(read) intersect {1} &&
+                              binsof(hit) intersect {0};
             }
 
  
-
-        coverpoint (read && !hit && dut.valid_array[dut.index]) {
-            bins read_replace = {1};
-        }
-
-        coverpoint (write && dut.valid_array[dut.index] && (dut.tag_array[dut.index] != dut.tag)) {
-            bins write_replace = {1};
-        }
-
 
         coverpoint dut.tag {
             bins lower_bins = {[0:TAG_LO]};
@@ -148,5 +139,49 @@ module tb_simple_cache;
 
     cache_cov cov_inst = new();
 
+    
+    // 3. Read to a valid line with tag mismatch (replacement)
+    property p_read_replace;
+        @(posedge clk) disable iff (reset)
+            read && !write && dut.valid_array[dut.index] && (dut.tag_array[dut.index] != dut.tag);
+    endproperty
+    cover property (p_read_replace);
+
+    // 4. Write to a valid line with tag mismatch (replacement)
+    property p_write_replace;
+        @(posedge clk) disable iff (reset)
+            write && !read && dut.valid_array[dut.index] && (dut.tag_array[dut.index] != dut.tag);
+    endproperty
+    cover property (p_write_replace);
+
+    // 5. Read cold miss (invalid line)
+    property p_read_cold_miss;
+        @(posedge clk) disable iff (reset)
+            read && !write && !dut.valid_array[dut.index];
+    endproperty
+    cover property (p_read_cold_miss);
+
+    // 6. Write cold miss (invalid line)
+    property p_write_cold_miss;
+        @(posedge clk) disable iff (reset)
+            write && !read && !dut.valid_array[dut.index];
+    endproperty
+    cover property (p_write_cold_miss);
+
+    // 7. Write then read-hit to same address (data round-trip path)
+    property p_write_then_read_hit;
+        logic [ADDR_WIDTH-1:0] saved_addr;
+        @(posedge clk) disable iff (reset)
+            (write && !read, saved_addr = addr) ##1 (read && !write && hit && addr == saved_addr);
+    endproperty
+    cover property (p_write_then_read_hit);
+
+    // 8. Read miss then read hit to same address (cache fill path)
+    property p_read_miss_then_hit;
+        logic [ADDR_WIDTH-1:0] saved_addr;
+        @(posedge clk) disable iff (reset)
+            (read && !hit, saved_addr = addr) ##1 (read && hit && addr == saved_addr);
+    endproperty
+    cover property (p_read_miss_then_hit);
 
 endmodule

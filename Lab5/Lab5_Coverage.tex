@@ -99,4 +99,120 @@ After enabling the provided stimulus, the following \textbf{5 additional bins} a
   \item \texttt{mid\_bins} --- occupancy in range \texttt{[1 : DEPTH-1]}
 \end{enumerate}
 
+\subsection*{Task 3}
+
+\subsubsection*{Missing Bins After Task 2}
+
+The following \textbf{3 bins + 1 cover directive} remained uncovered:
+
+\begin{enumerate}
+  \item \texttt{went\_full} --- \texttt{full == 1}
+  \item \texttt{full\_bin} --- \texttt{dut.count == DEPTH}
+  \item \texttt{illegal} --- cross bin where \texttt{wr\_en=1, rd\_en=1}
+\end{enumerate}
+\begin{enumerate}[label={D1.}]
+  \item \texttt{becomes\_empty\_after\_read} --- FIFO transitions to empty after a read when \texttt{dut.count > 0}
+\end{enumerate}
+
+\subsubsection*{Additional Stimulus}
+
+\paragraph*{Fully fill and fully empty the FIFO.}
+Increased the number of consecutive writes to exceed \texttt{DEPTH} (16), driving the FIFO to full occupancy, then increased the number of consecutive reads to drain it completely back to empty.
+
+\textbf{Hits bins:}
+\begin{itemize}
+  \item \texttt{went\_full} --- FIFO reaches full capacity
+  \item \texttt{full\_bin} --- \texttt{dut.count == DEPTH}
+  \item \texttt{becomes\_empty\_after\_read} (D1) --- FIFO drains to empty after a read while \texttt{dut.count > 0}
+\end{itemize}
+
+\paragraph*{Drive both \texttt{wr\_en} and \texttt{rd\_en} on the same cycle.}
+Added stimulus that asserts \texttt{wr\_en=1} and \texttt{rd\_en=1} simultaneously.
+
+\textbf{Hits bin:}
+\begin{itemize}
+  \item \texttt{illegal} --- cross bin where \texttt{wr\_en=1, rd\_en=1}
+\end{itemize}
+
+\section*{Cache}
+
+\subsection*{Task 4}
+
+\subsubsection*{Covergroup Bins}
+
+The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) and six \texttt{cover property} directives. In total there are \textbf{23 covergroup bins + 6 cover directives}.
+
+\paragraph*{Coverpoint \texttt{write} (2 auto-bins)}
+\begin{enumerate}[label=\arabic*.]
+  \item \texttt{auto[0]} --- \texttt{write == 0}
+  \item \texttt{auto[1]} --- \texttt{write == 1}
+\end{enumerate}
+
+\paragraph*{Coverpoint \texttt{read} (2 auto-bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{auto[0]} --- \texttt{read == 0}
+  \item \texttt{auto[1]} --- \texttt{read == 1}
+\end{enumerate}
+
+\paragraph*{Coverpoint \texttt{hit} (2 auto-bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{auto[0]} --- \texttt{hit == 0}
+  \item \texttt{auto[1]} --- \texttt{hit == 1}
+\end{enumerate}
+
+\paragraph*{Cross \texttt{write} $\times$ \texttt{read} (4 bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{write\_only} --- \texttt{write=1, read=0}
+  \item \texttt{read\_only} --- \texttt{write=0, read=1}
+  \item \texttt{both\_off} --- \texttt{write=0, read=0}
+  \item \texttt{read\_over\_write} --- \texttt{write=1, read=1} (read path takes priority)
+\end{enumerate}
+
+\paragraph*{Cross \texttt{write} $\times$ \texttt{hit} (2 bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{write\_hit} --- write with cache hit
+  \item \texttt{write\_miss} --- write with cache miss
+\end{enumerate}
+
+\paragraph*{Cross \texttt{read} $\times$ \texttt{hit} (2 bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{read\_hit} --- read with cache hit
+  \item \texttt{read\_miss} --- read with cache miss
+\end{enumerate}
+
+\paragraph*{Coverpoint \texttt{dut.tag} (3 bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{lower\_bins} --- tag in range \texttt{[0 : TAG\_LO]}
+  \item \texttt{mid\_bins} --- tag in range \texttt{[TAG\_LO+1 : TAG\_HI-1]}
+  \item \texttt{high\_bins} --- tag in range \texttt{[TAG\_HI : TAG\_MAX]}
+\end{enumerate}
+
+\paragraph*{Coverpoint \texttt{dut.index} (3 bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{lower\_bins} --- index in range \texttt{[0 : INDEX\_LO]}
+  \item \texttt{mid\_bins} --- index in range \texttt{[INDEX\_LO+1 : INDEX\_HI-1]}
+  \item \texttt{high\_bins} --- index in range \texttt{[INDEX\_HI : INDEX\_MAX]}
+\end{enumerate}
+
+\paragraph*{Coverpoint \texttt{dut.offset} (3 bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{lower\_bins} --- offset in range \texttt{[0 : OFFSET\_LO]}
+  \item \texttt{mid\_bins} --- offset in range \texttt{[OFFSET\_LO+1 : OFFSET\_HI-1]}
+  \item \texttt{high\_bins} --- offset in range \texttt{[OFFSET\_HI : OFFSET\_MAX]}
+\end{enumerate}
+
+\paragraph*{Cover Directives (+6)}
+\begin{enumerate}[label={D\arabic*.}]
+  \item \texttt{p\_read\_replace} --- read to a valid line with tag mismatch (conflict miss / replacement)
+  \item \texttt{p\_write\_replace} --- write to a valid line with tag mismatch (conflict miss / replacement)
+  \item \texttt{p\_read\_cold\_miss} --- read to an invalid line (compulsory miss)
+  \item \texttt{p\_write\_cold\_miss} --- write to an invalid line (compulsory miss)
+  \item \texttt{p\_write\_then\_read\_hit} --- write followed by read hit to the same address (data round-trip)
+  \item \texttt{p\_read\_miss\_then\_hit} --- read miss followed by read hit to the same address (cache fill path)
+\end{enumerate}
+
+\subsubsection*{Bins Covered by Random Test}
+
+% TODO: fill in after running simulation
+
 \end{document}
