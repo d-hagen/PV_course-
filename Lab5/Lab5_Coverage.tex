@@ -140,7 +140,7 @@ Added stimulus that asserts \texttt{wr\_en=1} and \texttt{rd\_en=1} simultaneous
 
 \subsubsection*{Covergroup Bins}
 
-The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) and six \texttt{cover property} directives. In total there are \textbf{33 covergroup bins + 6 cover directives}.
+The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) and seven \texttt{cover property} directives. In total there are \textbf{27 covergroup bins + 7 cover directives}.
 
 \paragraph*{Coverpoint \texttt{write} (2 auto-bins)}
 \begin{enumerate}[label=\arabic*.]
@@ -154,12 +154,10 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) and six \tex
   \item \texttt{auto[1]} --- \texttt{read == 1}
 \end{enumerate}
 
-\paragraph*{Coverpoint \texttt{hit} (4 transition bins)}
+\paragraph*{Coverpoint \texttt{hit} (2 auto-bins)}
 \begin{enumerate}[resume, label=\arabic*.]
-  \item \texttt{zero\_to\_one} --- hit transitions $0 \Rightarrow 1$ (miss to hit)
-  \item \texttt{one\_to\_zero} --- hit transitions $1 \Rightarrow 0$ (hit to miss)
-  \item \texttt{stays\_hit} --- hit stays $1 \Rightarrow 1$ (consecutive hits)
-  \item \texttt{stays\_miss} --- hit stays $0 \Rightarrow 0$ (consecutive misses)
+  \item \texttt{auto[0]} --- \texttt{hit == 0}
+  \item \texttt{auto[1]} --- \texttt{hit == 1}
 \end{enumerate}
 
 \paragraph*{Cross \texttt{write} $\times$ \texttt{read} (4 bins)}
@@ -170,20 +168,16 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) and six \tex
   \item \texttt{read\_over\_write} --- \texttt{write=1, read=1} (read path takes priority)
 \end{enumerate}
 
-\paragraph*{Cross \texttt{write} $\times$ \texttt{hit} (6 bins)}
-The full cross is $2 \times 4 = 8$ products. The two named bins select \texttt{write=1} cases; the four \texttt{write=0} combinations become auto-bins.
+\paragraph*{Cross \texttt{write} $\times$ \texttt{hit} (2 bins)}
 \begin{enumerate}[resume, label=\arabic*.]
   \item \texttt{write\_hit} --- write with cache hit
   \item \texttt{write\_miss} --- write with cache miss
-  \item[--] 4 auto-bins for \texttt{write=0} $\times$ each hit transition
 \end{enumerate}
 
-\paragraph*{Cross \texttt{read} $\times$ \texttt{hit} (6 bins)}
-Same structure: two named bins for \texttt{read=1}, four auto-bins for \texttt{read=0}.
+\paragraph*{Cross \texttt{read} $\times$ \texttt{hit} (2 bins)}
 \begin{enumerate}[resume, label=\arabic*.]
   \item \texttt{read\_hit} --- read with cache hit
   \item \texttt{read\_miss} --- read with cache miss
-  \item[--] 4 auto-bins for \texttt{read=0} $\times$ each hit transition
 \end{enumerate}
 
 \paragraph*{Coverpoint \texttt{dut.tag} (3 bins)}
@@ -207,7 +201,7 @@ Same structure: two named bins for \texttt{read=1}, four auto-bins for \texttt{r
   \item \texttt{high\_bins} --- offset in range \texttt{[OFFSET\_HI : OFFSET\_MAX]}
 \end{enumerate}
 
-\paragraph*{Cover Directives (+6)}
+\paragraph*{Cover Directives (+7)}
 \begin{enumerate}[label={D\arabic*.}]
   \item \texttt{p\_read\_replace} --- read to a valid line with tag mismatch (conflict miss / replacement)
   \item \texttt{p\_write\_replace} --- write to a valid line with tag mismatch (conflict miss / replacement)
@@ -215,10 +209,50 @@ Same structure: two named bins for \texttt{read=1}, four auto-bins for \texttt{r
   \item \texttt{p\_write\_cold\_miss} --- write to an invalid line (compulsory miss)
   \item \texttt{p\_write\_then\_read\_hit} --- write followed by read hit to the same address (data round-trip)
   \item \texttt{p\_read\_miss\_then\_hit} --- read miss followed by read hit to the same address (cache fill path)
+  \item \texttt{p\_hit\_deasserts} --- hit transitions $1 \rightarrow 0$ (verifies hit is not stuck high)
 \end{enumerate}
 
 \subsubsection*{Bins Covered by Random Test}
 
-% TODO: fill in after running simulation
+The random stimulus uses a constrained-random transaction class with weighted distribution over operations:
+
+\begin{center}
+\begin{tabular}{lrl}
+  \toprule
+  Operation & Weight & Signals \\
+  \midrule
+  Read only        & 45\% & \texttt{read=1, write=0} \\
+  Write only       & 45\% & \texttt{read=0, write=1} \\
+  Simultaneous     &  5\% & \texttt{read=1, write=1} \\
+  Idle             &  5\% & \texttt{read=0, write=0} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+This covers \textbf{all 27 covergroup bins} and \textbf{5 of 7 cover directives}.
+
+\paragraph*{Missing cover directives (2):}
+\begin{itemize}
+  \item \texttt{p\_write\_then\_read\_hit} --- requires a write followed by a read hit to the same address on the next cycle. Random stimulus does not produce same-address back-to-back operations.
+  \item \texttt{p\_read\_miss\_then\_hit} --- requires a read miss followed by a read hit to the same address on the next cycle. Same reason as above.
+\end{itemize}
+
+\subsubsection*{Additional Stimulus}
+
+\paragraph*{Directed write-then-read to same address.}
+Writes a random value to a random address, then immediately reads the same address on the next cycle. Repeated 20 times.
+
+\textbf{Hits directive:}
+\begin{itemize}
+  \item \texttt{p\_write\_then\_read\_hit} --- write followed by read hit to the same address
+\end{itemize}
+
+\paragraph*{Directed read-miss-then-read-hit to same address.}
+Reads a random address (miss), then reads the same address again on the next cycle (hit). Repeated 20 times.
+
+\textbf{Hits directive:}
+\begin{itemize}
+  \item \texttt{p\_read\_miss\_then\_hit} --- read miss followed by read hit to the same address
+\end{itemize}
 
 \end{document}

@@ -1,4 +1,11 @@
 // tb_simple_cache.sv
+
+// Probability weights
+`define W_READ_ONLY    45       // weight for read=1, write=0
+`define W_WRITE_ONLY   45       // weight for read=0, write=1
+`define W_BOTH         5        // weight for read=1, write=1 (simultaneous)
+`define W_IDLE         5        // weight for read=0, write=0
+
 module tb_simple_cache;
 
     // Parameters
@@ -24,6 +31,23 @@ module tb_simple_cache;
     localparam OFFSET_MAX   = (1 << OFFSET_WIDTH) - 1;
     localparam OFFSET_LO    = OFFSET_MAX / 10;
     localparam OFFSET_HI    = OFFSET_MAX - OFFSET_LO;
+
+    // Transaction class
+    class cache_transaction;
+        rand bit [ADDR_WIDTH-1:0] addr;
+        rand bit [DATA_WIDTH-1:0] data_in;
+        rand bit                  rd;
+        rand bit                  wr;
+
+        constraint c_op {
+            {rd, wr} dist {
+                2'b10 := `W_READ_ONLY,
+                2'b01 := `W_WRITE_ONLY,
+                2'b11 := `W_BOTH,
+                2'b00 := `W_IDLE
+            };
+        }
+    endclass
 
     // DUT signals
     logic clk, reset;
@@ -53,18 +77,36 @@ module tb_simple_cache;
         #20 reset = 0;
 
         // Random stimulus
-        repeat (200) begin
-            @(posedge clk);
-            addr = $urandom_range(0,255);
-            if ($urandom_range(0,1)) begin
-                read = 1; write = 0;
-            end else begin
-                read = 0; write = 1;
-                data_in = $urandom();
+        begin
+            cache_transaction tx = new();
+            repeat (200) begin
+                @(posedge clk);
+                if (!tx.randomize()) $fatal(1, "Randomization failed");
+                addr    = tx.addr;
+                data_in = tx.data_in;
+                read    = tx.rd;
+                write   = tx.wr;
             end
         end
 
-        // ADD ADDITIONAL STIMULUS AS NEEDED HERE
+        // Directed: write then read-hit to same address
+        repeat (20) begin
+            @(posedge clk);
+            addr = $urandom_range(0,255);
+            data_in = $urandom();
+            read = 0; write = 1;
+            @(posedge clk);
+            read = 1; write = 0;
+        end
+
+        // Directed: read miss then read hit to same address
+        repeat (20) begin
+            @(posedge clk);
+            addr = $urandom_range(0,255);
+            read = 1; write = 0;
+            @(posedge clk);
+            read = 1; write = 0;
+        end
 
         #50
         $display("TEST FINISHED");
