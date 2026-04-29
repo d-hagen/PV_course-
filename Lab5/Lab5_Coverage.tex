@@ -140,7 +140,7 @@ Added stimulus that asserts \texttt{wr\_en=1} and \texttt{rd\_en=1} simultaneous
 
 \subsubsection*{Covergroup Bins}
 
-The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) and six \texttt{cover property} directives. In total there are \textbf{25 covergroup bins + 6 cover directives}.
+The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) and six \texttt{cover property} directives. In total there are \textbf{33 covergroup bins + 6 cover directives}.
 
 \paragraph*{Coverpoint \texttt{write} (2 auto-bins)}
 \begin{enumerate}[label=\arabic*.]
@@ -170,16 +170,20 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) and six \tex
   \item \texttt{read\_over\_write} --- \texttt{write=1, read=1} (read path takes priority)
 \end{enumerate}
 
-\paragraph*{Cross \texttt{write} $\times$ \texttt{hit} (2 bins)}
+\paragraph*{Cross \texttt{write} $\times$ \texttt{hit} (6 bins)}
+The full cross is $2 \times 4 = 8$ products. The two named bins select \texttt{write=1} cases; the four \texttt{write=0} combinations become auto-bins.
 \begin{enumerate}[resume, label=\arabic*.]
   \item \texttt{write\_hit} --- write with cache hit
   \item \texttt{write\_miss} --- write with cache miss
+  \item[--] 4 auto-bins for \texttt{write=0} $\times$ each hit transition
 \end{enumerate}
 
-\paragraph*{Cross \texttt{read} $\times$ \texttt{hit} (2 bins)}
+\paragraph*{Cross \texttt{read} $\times$ \texttt{hit} (6 bins)}
+Same structure: two named bins for \texttt{read=1}, four auto-bins for \texttt{read=0}.
 \begin{enumerate}[resume, label=\arabic*.]
   \item \texttt{read\_hit} --- read with cache hit
   \item \texttt{read\_miss} --- read with cache miss
+  \item[--] 4 auto-bins for \texttt{read=0} $\times$ each hit transition
 \end{enumerate}
 
 \paragraph*{Coverpoint \texttt{dut.tag} (3 bins)}

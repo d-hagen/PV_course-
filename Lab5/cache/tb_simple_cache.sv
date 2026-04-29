@@ -84,12 +84,7 @@ module tb_simple_cache;
          // Cover read/write activity
         coverpoint write;
         coverpoint read;
-        coverpoint hit {
-            bins zero_to_one = (0 => 1);
-            bins one_to_zero = (1 => 0);
-            bins stays_hit   = (1 => 1);
-            bins stays_miss  = (0 => 0);
-        } //sticky hit ?
+        coverpoint hit;
 
 
 
@@ -188,5 +183,12 @@ module tb_simple_cache;
             (read && !hit, saved_addr = addr) ##1 (read && hit && addr == saved_addr);
     endproperty
     cover property (p_read_miss_then_hit);
+
+    // 9. Hit de-asserts (hit goes 1 -> 0, not stuck high)
+    property p_hit_deasserts;
+        @(posedge clk) disable iff (reset)
+            hit ##1 !hit;
+    endproperty
+    cover property (p_hit_deasserts);
 
 endmodule
