@@ -216,6 +216,16 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf
   \item \texttt{p\_hit\_deasserts} --- hit transitions $1 \rightarrow 0$ (verifies hit is not stuck high)
 \end{enumerate}
 
+\subsubsection*{Bins Covered by Initial Random Test}
+
+All 27 covergroup bins and 5 of 7 cover directives were hit. The following 3 were not:
+
+\begin{itemize}
+  \item \texttt{read\_over\_write} (cross \texttt{write} $\times$ \texttt{read})
+  \item \texttt{p\_write\_then\_read\_hit}
+  \item \texttt{p\_read\_miss\_then\_hit}
+\end{itemize}
+
 \subsubsection*{Uncovered Items with Simple Random Stimulus (\texttt{cache2})}
 
 The simple random stimulus leaves \textbf{1 covergroup bin} and \textbf{2 cover directives} uncovered:
