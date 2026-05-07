@@ -140,7 +140,7 @@ Added stimulus that asserts \texttt{wr\_en=1} and \texttt{rd\_en=1} simultaneous
 
 \subsubsection*{Covergroup Bins}
 
-The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf{9 coverpoints/crosses} totalling \textbf{27 bins}, plus \textbf{7 cover property} directives.
+The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf{11 coverpoints/crosses} totalling \textbf{32 bins}, plus \textbf{7 cover property} directives.
 
 \paragraph*{Coverpoint \texttt{write} (2 auto-bins)}
 \begin{enumerate}[label=\arabic*.]
@@ -168,20 +168,16 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf
   \item \texttt{read\_over\_write} --- \texttt{write=1, read=1}
 \end{enumerate}
 
-\paragraph*{Cross \texttt{write} $\times$ \texttt{hit} (4 bins)}
+\paragraph*{Cross \texttt{write} $\times$ \texttt{hit} (2 bins)}
 \begin{enumerate}[resume, label=\arabic*.]
   \item \texttt{write\_hit} --- \texttt{write=1, hit=1}
   \item \texttt{write\_miss} --- \texttt{write=1, hit=0}
-  \item \texttt{auto[write=0][hit=1]} --- not writing, hit asserted (carried from prior op)
-  \item \texttt{auto[write=0][hit=0]} --- not writing, no hit
 \end{enumerate}
 
-\paragraph*{Cross \texttt{read} $\times$ \texttt{hit} (4 bins)}
+\paragraph*{Cross \texttt{read} $\times$ \texttt{hit} (2 bins)}
 \begin{enumerate}[resume, label=\arabic*.]
   \item \texttt{read\_hit} --- \texttt{read=1, hit=1}
   \item \texttt{read\_miss} --- \texttt{read=1, hit=0}
-  \item \texttt{auto[read=0][hit=1]} --- not reading, hit asserted (carried from prior op)
-  \item \texttt{auto[read=0][hit=0]} --- not reading, no hit
 \end{enumerate}
 
 \paragraph*{Coverpoint \texttt{dut.tag} (3 bins)}
@@ -191,11 +187,28 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf
   \item \texttt{high\_bins} --- tag in range \texttt{[TAG\_HI : TAG\_MAX]}
 \end{enumerate}
 
-\paragraph*{Coverpoint \texttt{dut.index} (3 bins)}
+\paragraph*{Coverpoint \texttt{cp\_index} (\texttt{dut.index}) (3 bins)}
 \begin{enumerate}[resume, label=\arabic*.]
   \item \texttt{lower\_bins} --- index in range \texttt{[0 : INDEX\_LO]}
   \item \texttt{mid\_bins} --- index in range \texttt{[INDEX\_LO+1 : INDEX\_HI-1]}
   \item \texttt{high\_bins} --- index in range \texttt{[INDEX\_HI : INDEX\_MAX]}
+\end{enumerate}
+
+\paragraph*{Coverpoint \texttt{valid\_count} (3 bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{cold} --- no valid cache lines (\texttt{valid\_count == 0})
+  \item \texttt{partial} --- some lines valid (\texttt{[1 : CACHE\_LINES-1]})
+  \item \texttt{fully\_loaded} --- all lines valid (\texttt{valid\_count == CACHE\_LINES})
+\end{enumerate}
+
+\paragraph*{Cross \texttt{cp\_index} $\times$ \texttt{hit} (6 bins)}
+\begin{enumerate}[resume, label=\arabic*.]
+  \item \texttt{index\_low\_hit} --- index in \texttt{[0:INDEX\_LO]}, hit=1
+  \item \texttt{index\_low\_miss} --- index in \texttt{[0:INDEX\_LO]}, hit=0
+  \item \texttt{index\_mid\_hit} --- index in \texttt{[INDEX\_LO+1:INDEX\_HI-1]}, hit=1
+  \item \texttt{index\_mid\_miss} --- index in \texttt{[INDEX\_LO+1:INDEX\_HI-1]}, hit=0
+  \item \texttt{index\_high\_hit} --- index in \texttt{[INDEX\_HI:INDEX\_MAX]}, hit=1
+  \item \texttt{index\_high\_miss} --- index in \texttt{[INDEX\_HI:INDEX\_MAX]}, hit=0
 \end{enumerate}
 
 \paragraph*{Coverpoint \texttt{dut.offset} (3 bins)}
@@ -205,7 +218,7 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf
   \item \texttt{high\_bins} --- offset in range \texttt{[OFFSET\_HI : OFFSET\_MAX]}
 \end{enumerate}
 
-\paragraph*{Cover Directives (+7)}
+\paragraph*{Cover Directives (7)}
 \begin{enumerate}[label={D\arabic*.}]
   \item \texttt{p\_read\_replace} --- read to a valid line with tag mismatch (conflict miss / replacement)
   \item \texttt{p\_write\_replace} --- write to a valid line with tag mismatch (conflict miss / replacement)
@@ -218,7 +231,7 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf
 
 \subsubsection*{Bins Covered by Initial Random Test}
 
-26 of 27 covergroup bins and 5 of 7 cover directives were hit. The following 3 were not:
+29 of 32 covergroup bins and 5 of 7 cover directives were hit. The following 3 were not:
 
 \begin{itemize}
   \item \texttt{read\_over\_write} (cross \texttt{write} $\times$ \texttt{read})
@@ -226,19 +239,10 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf
   \item \texttt{p\_read\_miss\_then\_hit}
 \end{itemize}
 
-\subsubsection*{Uncovered Items with Simple Random Stimulus (\texttt{cache2})}
 
-The simple random stimulus leaves \textbf{1 covergroup bin} and \textbf{2 cover directives} uncovered:
+\subsection*{Task 5}
 
-\begin{enumerate}
-  \item \texttt{read\_over\_write} (cross \texttt{write} $\times$ \texttt{read}) --- the stimulus always asserts exactly one of \texttt{read} or \texttt{write}. \texttt{read=1, write=1} is structurally impossible with this stimulus.
-  \item \texttt{p\_write\_then\_read\_hit} --- requires a write followed by a read to the same address within 5 cycles. With 256 possible addresses, the chance of the same address repeating in that window is too low to guarantee coverage over 200 cycles.
-  \item \texttt{p\_read\_miss\_then\_hit} --- same reason; requires same-address repetition that pure random stimulus does not reliably produce.
-\end{enumerate}
-
-\subsubsection*{Changes Made to Achieve Full Coverage (\texttt{cache})}
-
-Two changes were made to the stimulus and one to the cover properties relative to \texttt{cache2}:
+Stimulus changes made to achieve 100% coverage :
 
 \paragraph*{1. Weighted constrained-random operation class.}
 Replaced the 50/50 \texttt{\$urandom\_range} with a SystemVerilog transaction class using a \texttt{dist} constraint, enabling all four operation combinations to be generated:
@@ -266,7 +270,6 @@ Two directed loops were added after the random phase:
   \item \textit{Read-miss then read-hit:} reads a random address (miss), then reads the same address on the next cycle (guaranteed hit). Repeated 20 times. Covers \texttt{p\_read\_miss\_then\_hit}.
 \end{itemize}
 
-\paragraph*{3. Relaxed temporal constraint on sequential properties.}
-Both \texttt{p\_write\_then\_read\_hit} and \texttt{p\_read\_miss\_then\_hit} were updated from \texttt{\#\#1} to \texttt{\#\#[1:5]}, allowing the matching access to occur within a 5-cycle window rather than requiring it on the immediately following cycle.
+
 
 \end{document}

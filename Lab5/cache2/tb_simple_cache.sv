@@ -119,7 +119,7 @@ module tb_simple_cache;
             bins high_bins  = {[TAG_HI:TAG_MAX]};
         }
 
-        coverpoint dut.index {
+        cp_index: coverpoint dut.index {
             bins lower_bins = {[0:INDEX_LO]};
             bins mid_bins   = {[INDEX_LO+1:INDEX_HI-1]};
             bins high_bins  = {[INDEX_HI:INDEX_MAX]};
@@ -133,13 +133,13 @@ module tb_simple_cache;
         }
 
         // Hit/miss spread across index ranges
-        cross dut.index, hit {
-            bins index_low_hit   = binsof(dut.index) intersect {[0:INDEX_LO]}    && binsof(hit) intersect {1};
-            bins index_low_miss  = binsof(dut.index) intersect {[0:INDEX_LO]}    && binsof(hit) intersect {0};
-            bins index_mid_hit   = binsof(dut.index) intersect {[INDEX_LO+1:INDEX_HI-1]} && binsof(hit) intersect {1};
-            bins index_mid_miss  = binsof(dut.index) intersect {[INDEX_LO+1:INDEX_HI-1]} && binsof(hit) intersect {0};
-            bins index_high_hit  = binsof(dut.index) intersect {[INDEX_HI:INDEX_MAX]}    && binsof(hit) intersect {1};
-            bins index_high_miss = binsof(dut.index) intersect {[INDEX_HI:INDEX_MAX]}    && binsof(hit) intersect {0};
+        cross cp_index, hit {
+            bins index_low_hit   = binsof(cp_index) intersect {[0:INDEX_LO]}    && binsof(hit) intersect {1};
+            bins index_low_miss  = binsof(cp_index) intersect {[0:INDEX_LO]}    && binsof(hit) intersect {0};
+            bins index_mid_hit   = binsof(cp_index) intersect {[INDEX_LO+1:INDEX_HI-1]} && binsof(hit) intersect {1};
+            bins index_mid_miss  = binsof(cp_index) intersect {[INDEX_LO+1:INDEX_HI-1]} && binsof(hit) intersect {0};
+            bins index_high_hit  = binsof(cp_index) intersect {[INDEX_HI:INDEX_MAX]}    && binsof(hit) intersect {1};
+            bins index_high_miss = binsof(cp_index) intersect {[INDEX_HI:INDEX_MAX]}    && binsof(hit) intersect {0};
         }
 
         coverpoint dut.offset {
@@ -186,7 +186,7 @@ module tb_simple_cache;
     property p_write_then_read_hit;
         logic [ADDR_WIDTH-1:0] saved_addr;
         @(posedge clk) disable iff (reset)
-            (write && !read, saved_addr = addr) ##[1:5] (read && !write && hit && addr == saved_addr);
+            (write && !read, saved_addr = addr) ##[1:$] (read && !write && hit && addr == saved_addr);
     endproperty
     cover property (p_write_then_read_hit);
 
@@ -194,7 +194,7 @@ module tb_simple_cache;
     property p_read_miss_then_hit;
         logic [ADDR_WIDTH-1:0] saved_addr;
         @(posedge clk) disable iff (reset)
-            (read && !hit, saved_addr = addr) ##[1:5] (read && hit && addr == saved_addr);
+            (read && !hit, saved_addr = addr) ##[1:$] (read && hit && addr == saved_addr);
     endproperty
     cover property (p_read_miss_then_hit);
 
