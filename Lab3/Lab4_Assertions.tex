@@ -1,0 +1,170 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+  language=Verilog,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue}\bfseries,
+  commentstyle=\color{gray},
+  breaklines=true,
+  frame=single,
+  xleftmargin=1em,
+  framexleftmargin=0.5em,
+  columns=fullflexible,
+  keepspaces=true,
+  morekeywords={assert,property,disable,iff,else},
+  literate={|->}{{\textbar->}}3 {|=>}{{\textbar=>}}3 {\#\#}{{\#\#}}2
+}
+
+\title{Lab4 Assertions}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Fetch}
+
+\begin{enumerate}
+
+\item \textbf{Reset clears PC and instruction.}
+After reset is de-asserted, the PC must be 0 and the instruction output must be \texttt{0x0000}.
+\begin{lstlisting}
+assert property (
+  @(posedge clk) !rst_n |=> (instr == 16'h0000 && dut.pc == 0)
+) else $error("PC not 0 after reset");
+\end{lstlisting}
+
+\item \textbf{Branch sets PC to branch address.}
+When \texttt{branch\_en} is asserted, the PC must load \texttt{branch\_addr} on the next cycle.
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  disable iff (!rst_n)
+  (branch_en) |=> (dut.pc == $past(branch_addr))
+) else $error("PC doesnt set to branch adress after branch_en (no reset)");
+\end{lstlisting}
+
+\item \textbf{PC increments by 2 when \texttt{pc\_en} is active (no branch).}
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  disable iff (!rst_n)
+  (!branch_en && pc_en) |=> (dut.pc == $past(dut.pc + 2))
+) else $error("PC doesnt incremented by 2 after pc_en (no branch & reset)");
+\end{lstlisting}
+
+\item \textbf{PC holds when no control signal is active.}
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  disable iff (!rst_n)
+  (!branch_en && !pc_en) |=> (dut.pc == $past(dut.pc))
+) else $error("PC does not hold its value when no control signal is active");
+\end{lstlisting}
+
+\item \textbf{Instruction output matches memory at current PC.}
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  disable iff (!rst_n)
+  instr == dut.mem[dut.pc]
+) else $error(" instr != mem[PC]");
+\end{lstlisting}
+
+\item \textbf{PC stays within range.}
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  disable iff (!rst_n)
+  dut.pc <= 8'hFF
+) else $error("PC out of range");
+\end{lstlisting}
+
+\end{enumerate}
+
+\section{Decode}
+
+\begin{enumerate}
+
+\item \textbf{Decode latency: \texttt{decode\_done} asserts 2 cycles after clean acceptance.}
+If \texttt{instr\_valid} is asserted with no hazard, and no new instruction arrives at the next cycle, then \texttt{decode\_done} pulses two cycles later.
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  disable iff (!rst_n)
+  (instr_valid && !dut.hazard_stall_next )
+    |-> ##1 !instr_valid ##1 decode_done
+) else $error("decode_done not asserted 2 cycles after clean, uninterrupted acceptance");
+\end{lstlisting}
+
+\item \textbf{No \texttt{decode\_done} during stall.}
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  disable iff (!rst_n)
+  hazard_stall |-> !decode_done
+) else $error("decode_done asserted during stall window");
+\end{lstlisting}
+
+\item \textbf{Field capture on acceptance.}
+When an instruction is accepted (valid, no hazard), the output fields must reflect the instruction word one cycle later.
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  disable iff (!rst_n)
+  (instr_valid && !dut.hazard_stall_next) |=>
+    (opcode == $past(instr[15:12])) &&
+    (rd     == $past(instr[11:8]))  &&
+    (rs     == $past(instr[7:4]))   &&
+    (imm    == $past(instr[3:0]))
+) else $error("fields not captured correctly on acceptance");
+\end{lstlisting}
+
+\item \textbf{Field stability during hazard assertion.}
+When a hazard is detected, the output fields must not change.
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  disable iff (!rst_n)
+  (instr_valid && dut.hazard_stall_next) |=>
+    (opcode == $past(opcode)) &&
+    (rd     == $past(rd))     &&
+    (rs     == $past(rs))     &&
+    (imm    == $past(imm))
+) else $error("fields changed during assertion");
+\end{lstlisting}
+
+\item \textbf{Reset clears all outputs.}
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  !rst_n |=> !decode_done && (opcode == 0) && (rd == 0) &&
+             (rs == 0) && (imm == 0) && !hazard_stall
+) else $error("outputs not cleared after reset");
+\end{lstlisting}
+
+\item \textbf{Hazard detection: \texttt{rs} matches previous \texttt{rd}.}
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  disable iff (!rst_n)
+  (instr_valid && (instr[7:4] == dut.last_rd)) |=> hazard_stall
+) else $error("hazard_stall not asserted when rs matches previous rd");
+\end{lstlisting}
+
+\item \textbf{\texttt{decode\_done} is a single-cycle pulse.}
+\begin{lstlisting}
+assert property (
+  @(posedge clk)
+  disable iff (!rst_n)
+  decode_done |=> !decode_done
+) else $error("decode_done asserted for more than one cycle");
+\end{lstlisting}
+
+\end{enumerate}
+
+\end{document}
