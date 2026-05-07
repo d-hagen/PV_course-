@@ -186,7 +186,7 @@ module tb_simple_cache;
     property p_write_then_read_hit;
         logic [ADDR_WIDTH-1:0] saved_addr;
         @(posedge clk) disable iff (reset)
-            (write && !read, saved_addr = addr) ##[1:$] (read && !write && hit && addr == saved_addr);
+            (write && !read, saved_addr = addr) ##[1:5] (read && !write && hit && addr == saved_addr);
     endproperty
     cover property (p_write_then_read_hit);
 
@@ -194,7 +194,7 @@ module tb_simple_cache;
     property p_read_miss_then_hit;
         logic [ADDR_WIDTH-1:0] saved_addr;
         @(posedge clk) disable iff (reset)
-            (read && !hit, saved_addr = addr) ##[1:$] (read && hit && addr == saved_addr);
+            (read && !hit, saved_addr = addr) ##[1:5] (read && hit && addr == saved_addr);
     endproperty
     cover property (p_read_miss_then_hit);
 
