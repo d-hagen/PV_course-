@@ -15,7 +15,7 @@ run: compile
 	vsim -c -coverage work.tb_$(UNIT) -do "coverage save -onexit test1.ucb; run -all; quit -f"
 
 report:
-	vcover report test1.ucb
+	vcover report -details -zeros -cvg test1.ucb
 
 report_html:
 	vcover report -html -output coverage_report test1.ucb
