@@ -140,7 +140,7 @@ Added stimulus that asserts \texttt{wr\_en=1} and \texttt{rd\_en=1} simultaneous
 
 \subsubsection*{Covergroup Bins}
 
-The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf{11 coverpoints/crosses} totalling \textbf{32 bins}, plus \textbf{7 cover property} directives.
+The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf{11 coverpoints/crosses} totalling \textbf{36 bins}, plus \textbf{7 cover property} directives.
 
 \paragraph*{Coverpoint \texttt{write} (2 auto-bins)}
 \begin{enumerate}[label=\arabic*.]
@@ -168,16 +168,20 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf
   \item \texttt{read\_over\_write} --- \texttt{write=1, read=1}
 \end{enumerate}
 
-\paragraph*{Cross \texttt{write} $\times$ \texttt{hit} (2 bins)}
+\paragraph*{Cross \texttt{write} $\times$ \texttt{hit} (4 bins)}
 \begin{enumerate}[resume, label=\arabic*.]
   \item \texttt{write\_hit} --- \texttt{write=1, hit=1}
   \item \texttt{write\_miss} --- \texttt{write=1, hit=0}
+  \item \texttt{auto[write=0][hit=1]} --- not writing, hit asserted (carried from prior op)
+  \item \texttt{auto[write=0][hit=0]} --- not writing, no hit
 \end{enumerate}
 
-\paragraph*{Cross \texttt{read} $\times$ \texttt{hit} (2 bins)}
+\paragraph*{Cross \texttt{read} $\times$ \texttt{hit} (4 bins)}
 \begin{enumerate}[resume, label=\arabic*.]
   \item \texttt{read\_hit} --- \texttt{read=1, hit=1}
   \item \texttt{read\_miss} --- \texttt{read=1, hit=0}
+  \item \texttt{auto[read=0][hit=1]} --- not reading, hit asserted (carried from prior op)
+  \item \texttt{auto[read=0][hit=0]} --- not reading, no hit
 \end{enumerate}
 
 \paragraph*{Coverpoint \texttt{dut.tag} (3 bins)}
@@ -231,7 +235,7 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf
 
 \subsubsection*{Bins Covered by Initial Random Test}
 
-29 of 32 covergroup bins and 5 of 7 cover directives were hit. The following 3 were not:
+35 of 36 covergroup bins and 5 of 7 cover directives were hit. The following were not:
 
 \begin{itemize}
   \item \texttt{read\_over\_write} (cross \texttt{write} $\times$ \texttt{read})
