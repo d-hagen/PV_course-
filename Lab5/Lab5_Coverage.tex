@@ -218,7 +218,7 @@ The testbench defines one \texttt{covergroup} (\texttt{cache\_cov}) with \textbf
 
 \subsubsection*{Uncovered Items with Simple Random Stimulus (\texttt{cache2})}
 
-The \texttt{cache2} testbench uses plain \texttt{\$urandom\_range(0,255)} for address and a strict 50/50 read-or-write split over 200 cycles. This leaves \textbf{1 covergroup bin} and \textbf{2 cover directives} uncovered:
+The simple random stimulus leaves \textbf{1 covergroup bin} and \textbf{2 cover directives} uncovered:
 
 \begin{enumerate}
   \item \texttt{read\_over\_write} (cross \texttt{write} $\times$ \texttt{read}) --- the stimulus always asserts exactly one of \texttt{read} or \texttt{write}. \texttt{read=1, write=1} is structurally impossible with this stimulus.
