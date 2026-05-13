@@ -1,0 +1,63 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{parskip}
+\usepackage{makecell}
+
+\title{\textbf{Lab 6 -- UVM Testbench}\\[0.4em]
+       \large Existing Testbench Structure}
+\author{Dan Hagen}
+\date{May 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llll}
+  \toprule
+  Block & Lines & Role & UVM equivalent \\
+  \midrule
+  Parameters \& signals & 1--27    & Declare DUT ports directly       & \texttt{mem\_ctrl\_if} \\ \hline
+  DUT instantiation     & 30--34   & Connect TB to DUT                & (unchanged) \\ \hline
+  Transaction type      & 36--50   & Combined M0+M1 stimulus packet   & \texttt{ctrl\_transaction} \\ \hline
+  Mailboxes \& flags    & 52--65   & Inter-process communication      & \makecell[l]{\texttt{ctrl\_sequencer}\\+ objections} \\ \hline
+  Clock \& Reset        & 67--77   & Timing infrastructure            & Top-level module \\ \hline
+  Generator (directed)  & 89--119  & Deterministic M0/M1 stimulus     & \texttt{ctrl\_directed\_seq} \\ \hline
+  Generator (contention)& 122--137 & Simultaneous M0+M1 stimulus      & \texttt{ctrl\_contention\_seq} \\ \hline
+  Generator (random)    & 140--156 & Randomised mixed stimulus        & \texttt{ctrl\_random\_seq} \\ \hline
+  Driver                & 172--233 & Drive DUT pins from mailbox      & \texttt{ctrl\_driver} \\ \hline
+  Checker               & 236--284 & Golden model + result comparison & \texttt{ctrl\_scoreboard} \\ \hline
+  Monitor               & 289--349 & Sample DUT signals, build events & \texttt{ctrl\_monitor} \\ \hline
+  Main control          & 354--397 & \makecell[l]{Launch tasks,\\wait, \texttt{\$finish}} & \makecell[l]{\texttt{ctrl\_directed\_test}\\\texttt{ctrl\_contention\_test}\\\texttt{ctrl\_random\_test}\\\texttt{ctrl\_full\_test}} \\
+  \bottomrule
+\end{tabular}
+\caption{Structure of \texttt{tb\_simple\_mem\_ctrl.sv} and its UVM mapping.}
+\end{table}
+
+\newpage
+\section*{UVM Testbench Diagram}
+
+\begin{verbatim}
+uvm_test_top (ctrl_directed_test | ctrl_contention_test |
+              ctrl_random_test   | ctrl_full_test)
+|
++-- ctrl_env
+    |
+    +-- ctrl_agent
+    |   |
+    |   +-- ctrl_sequencer <-------- ctrl_directed_seq
+    |   |         |                  ctrl_contention_seq
+    |   |    TLM handshake           ctrl_random_seq
+    |   |         |
+    |   +-- ctrl_driver ----drive---> mem_ctrl_if ---> DUT (simple_mem_ctrl)
+    |   |                                                       |
+    |   +-- ctrl_monitor <--sample-- mem_ctrl_if <-------------+
+    |         |
+    |    analysis_port
+    |         |
+    +-- ctrl_scoreboard
+\end{verbatim}
+
+\end{document}
