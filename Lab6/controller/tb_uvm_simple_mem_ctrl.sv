@@ -88,6 +88,12 @@ package controller_pkg;
         task run_phase(uvm_phase phase);
             ctrl_transaction tx;
 
+            // Idle drivers and wait until reset is released so we don't issue
+            // a phantom transaction while the DUT is held in reset.
+            vif.req0 = 0; vif.we0 = 0; vif.addr0 = '0; vif.wdata0 = '0;
+            vif.req1 = 0; vif.we1 = 0; vif.addr1 = '0; vif.wdata1 = '0;
+            wait (vif.rst_n === 1'b1);
+
             forever begin
                 seq_item_port.get_next_item(tx);
 
@@ -162,6 +168,11 @@ package controller_pkg;
             ctrl_transaction trans;
             bit any_write;
             bit any_read;
+
+            // Do not sample bus activity while the DUT is in reset; gnt/we
+            // can still glitch and produce ghost events that mislead the SCB.
+            wait (vif.rst_n === 1'b1);
+
             forever begin
                 @(posedge vif.clk);
 
