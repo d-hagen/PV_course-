@@ -60,4 +60,66 @@ uvm_test_top (ctrl_directed_test | ctrl_contention_test |
     +-- ctrl_scoreboard
 \end{verbatim}
 
+
+\section*{Ai usage}
+
+
+
+
+Work alognside it  as a guid and help to find relvant parts in slides + some background info
+
+Example : 
+
+
+Ok lets move on to the monitor. For now just give relvant line numbers in the original tb, the     
+relevant slide pages . And super short idea of what its purpose/fucntionality is                     
+                   
+
+Response:
+⏺ Original TB: lines 289-349 (tb_monitor)                                                            
+                                                                                                     
+  Slides: W08 slide 18 (uvm_monitor role), W08 slide 31 (FIFO monitor implementation), W09 slide 4   
+  (communication/connect phases), W09 slide 30 (analysis ports)                                      
+                                                                                                     
+  Purpose: Passively samples DUT signals every clock cycle, packages what it observes into a         
+  ctrl_transaction, and broadcasts it via uvm_analysis_port to anyone listening (scoreboard). It   
+  never drives anything — read-only. 
+
+
+
+
+Response:
+
+  Ok again for top module give me the relvant slides and info to try        
+  implmenting it my slefe. Also  what does super.run_phase(phase) do ? Why do 
+ the slides implement it in their examples ?                                
+                                                                            
+⏺ super.run_phase(phase): It calls the parent class's run_phase. In         
+  uvm_test, that's an empty method — does nothing. The slides include it as
+  a habit/convention to be safe in case you ever extend a test from another 
+  test (where the parent might have real logic in run_phase). For your tests
+   extending directly from uvm_test, it's optional. Up to you whether to    
+  keep it for consistency with the slides or remove it.
+                          
+  ---                                            
+  Top module:
+             
+  - Slides: W09 slides 5-6 (top module example with interface, DUT,
+  config_db, run_test).                                                     
+  - Original TB: Lines 67-77 (clock + reset), lines 31-34 (DUT
+  instantiation), lines 356-364 (signal init).                              
+                             
+
+
+Repatative tasks: 
+
+(after doing 2/3 display to uvm style):
+Switch the rest of display to uvm style 
+
+
+Linting + spelling + naming mismatches:
+
+Clean up code (set in .md file that this is doesnt touch logic)
+
+  
 \end{document}
