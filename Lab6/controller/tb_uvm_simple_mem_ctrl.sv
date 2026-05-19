@@ -51,7 +51,7 @@ package controller_pkg;
         endfunction
 
         function string convert2string();
-            return $sformat("M0[use=%0b we=%0b addr=%0h data=%0h] M1[use=%0b we=%0b addr=%0h data=%0h] delay=%0d",                                                    
+            return $sformatf("M0[use=%0b we=%0b addr=%0h data=%0h] M1[use=%0b we=%0b addr=%0h data=%0h] delay=%0d",                                                    
               use_m0, is_write0, addr0, data0,
               use_m1, is_write1, addr1, data1,                                      
               delay_cycles);          
