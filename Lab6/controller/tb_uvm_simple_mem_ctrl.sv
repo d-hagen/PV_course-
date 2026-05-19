@@ -452,8 +452,8 @@ package controller_pkg;
         endfunction
 
         task run_phase(uvm_phase phase);
-            super.run_phase(phase);
             ctrl_directed_seq seq;
+            super.run_phase(phase);
             seq = ctrl_directed_seq::type_id::create("dir_seq");
             phase.raise_objection(this);
             seq.start(env.agent.sqr);  // Run sequence in sequencer
@@ -478,8 +478,8 @@ package controller_pkg;
         endfunction
 
         task run_phase(uvm_phase phase);
-            super.run_phase(phase);
             ctrl_contention_seq seq;
+            super.run_phase(phase);
             seq = ctrl_contention_seq::type_id::create("cont_seq");
             phase.raise_objection(this);
             seq.start(env.agent.sqr);  // Run sequence in sequencer
@@ -504,8 +504,8 @@ package controller_pkg;
         endfunction
 
         task run_phase(uvm_phase phase);
-            super.run_phase(phase);
             ctrl_random_seq seq;
+            super.run_phase(phase);
             seq = ctrl_random_seq::type_id::create("rand_seq");
             phase.raise_objection(this);
             seq.start(env.agent.sqr);  // Run sequence in sequencer
@@ -532,10 +532,10 @@ package controller_pkg;
 
 
         task run_phase(uvm_phase phase);
-            super.run_phase(phase);                      
-            ctrl_directed_seq   dir_seq;                                          
+            ctrl_directed_seq   dir_seq;
             ctrl_contention_seq cont_seq;
-            ctrl_random_seq     rand_seq;                                         
+            ctrl_random_seq     rand_seq;
+            super.run_phase(phase);
             phase.raise_objection(this);
             dir_seq  = ctrl_directed_seq::type_id::create("dir_seq");             
             dir_seq.start(env.agent.sqr);              
