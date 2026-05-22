@@ -53,85 +53,85 @@ module packet (
     // FORMAL STATEMENTS BELOW --------------------------------
     //
 
-`ifdef FORMAL
+    `ifdef FORMAL
 
-    initial assume(reset);
-
-
-    always @(posedge clk) if (reset) assume(state == IDLE);
-
-     // Track if we are past the first cycle
-    logic past_valid;
-    always @(posedge clk) past_valid <= 1'b1;
+        initial assume(reset);
 
 
-    assume property (@(posedge clk)
-        !(chk_ok && chk_fail));
+        always @(posedge clk) if (reset) assume(state == IDLE);
+
+        // Track if we are past the first cycle
+        logic past_valid;
+        always @(posedge clk) past_valid <= 1'b1;
 
 
-
-    //STate transistions 
-
-    assert property (@(posedge clk) disable iff (reset)
-        past_valid && !$past(reset || abort) && ($past(start_pkt) &&  $past(state) == IDLE)
-            |-> state == HEADER);
-    
-    assert property (@(posedge clk) disable iff (reset)
-        past_valid && !$past(reset || abort) && ($past(hdr_done) &&  $past(state) == HEADER)
-            |-> state == PAYLOAD);
-
-    assert property (@(posedge clk) disable iff (reset)
-        past_valid && !$past(reset || abort) && ($past(payload_done) &&  $past(state) == PAYLOAD)
-            |-> state == CHECKSUM);
-
-    assert property (@(posedge clk) disable iff (reset)
-        past_valid && !$past(reset || abort) && ($past(chk_ok) &&  $past(state) == CHECKSUM)
-            |-> (state == DONE && valid_pkt));
-
-    assert property (@(posedge clk) disable iff (reset)
-        past_valid && !$past(reset || abort) && ($past(chk_fail) &&  $past(state) == CHECKSUM)
-            |-> (state == IDLE && error_pkt));
-
-
-    assert property (@(posedge clk) disable iff (reset)
-        $past(state) == DONE
-            |-> state == IDLE);
-
-
-    assert property (@(posedge clk)
-        $past(reset || abort) |-> state == IDLE);
-
-
-    assert property (@(posedge clk) disable iff (reset)
-        past_valid && !$past(reset || abort) && (!$past(start_pkt) &&  $past(state) == IDLE)
-            |-> state == IDLE);
-    
-    assert property (@(posedge clk) disable iff (reset)
-        past_valid && !$past(reset || abort) && (!$past(hdr_done) &&  $past(state) == HEADER)
-            |-> state == HEADER);
-
-    assert property (@(posedge clk) disable iff (reset)
-        past_valid && !$past(reset || abort) && (!$past(payload_done) &&  $past(state) == PAYLOAD)
-            |-> state == PAYLOAD);
-
-    assert property (@(posedge clk) disable iff (reset)
-        past_valid && !$past(reset || abort) && !$past(chk_ok) && !$past(chk_fail) && $past(state) == CHECKSUM
-            |-> (state == CHECKSUM));
+        assume property (@(posedge clk)
+            !(chk_ok && chk_fail));
 
 
 
-    assert property (@(posedge clk) disable iff (reset)
-        !(valid_pkt && error_pkt));
+        //STate transistions 
 
-    assert property (@(posedge clk) disable iff (reset)
-        valid_pkt |-> $past(state) == CHECKSUM && $past(chk_ok) && !$past(abort));
+        assert property (@(posedge clk) disable iff (reset)
+            past_valid && !$past(reset || abort) && ($past(start_pkt) &&  $past(state) == IDLE)
+                |-> state == HEADER);
+        
+        assert property (@(posedge clk) disable iff (reset)
+            past_valid && !$past(reset || abort) && ($past(hdr_done) &&  $past(state) == HEADER)
+                |-> state == PAYLOAD);
 
-    assert property (@(posedge clk) disable iff (reset)
-        error_pkt |-> $past(state) == CHECKSUM && $past(chk_fail) && !$past(chk_ok) && !$past(abort));
+        assert property (@(posedge clk) disable iff (reset)
+            past_valid && !$past(reset || abort) && ($past(payload_done) &&  $past(state) == PAYLOAD)
+                |-> state == CHECKSUM);
 
-    assert property (@(posedge clk)
-        $past(reset) |-> !valid_pkt && !error_pkt);
+        assert property (@(posedge clk) disable iff (reset)
+            past_valid && !$past(reset || abort) && ($past(chk_ok) &&  $past(state) == CHECKSUM)
+                |-> (state == DONE && valid_pkt));
 
-`endif
+        assert property (@(posedge clk) disable iff (reset)
+            past_valid && !$past(reset || abort) && ($past(chk_fail) &&  $past(state) == CHECKSUM)
+                |-> (state == IDLE && error_pkt));
+
+
+        assert property (@(posedge clk) disable iff (reset)
+            $past(state) == DONE
+                |-> state == IDLE);
+
+
+        assert property (@(posedge clk)
+            $past(reset || abort) |-> state == IDLE);
+
+
+        assert property (@(posedge clk) disable iff (reset)
+            past_valid && !$past(reset || abort) && (!$past(start_pkt) &&  $past(state) == IDLE)
+                |-> state == IDLE);
+        
+        assert property (@(posedge clk) disable iff (reset)
+            past_valid && !$past(reset || abort) && (!$past(hdr_done) &&  $past(state) == HEADER)
+                |-> state == HEADER);
+
+        assert property (@(posedge clk) disable iff (reset)
+            past_valid && !$past(reset || abort) && (!$past(payload_done) &&  $past(state) == PAYLOAD)
+                |-> state == PAYLOAD);
+
+        assert property (@(posedge clk) disable iff (reset)
+            past_valid && !$past(reset || abort) && !$past(chk_ok) && !$past(chk_fail) && $past(state) == CHECKSUM
+                |-> (state == CHECKSUM));
+
+
+
+        assert property (@(posedge clk) disable iff (reset)
+            !(valid_pkt && error_pkt));
+
+        assert property (@(posedge clk) disable iff (reset)
+            valid_pkt |-> $past(state) == CHECKSUM && $past(chk_ok) && !$past(abort));
+
+        assert property (@(posedge clk) disable iff (reset)
+            error_pkt |-> $past(state) == CHECKSUM && $past(chk_fail) && !$past(chk_ok) && !$past(abort));
+
+        assert property (@(posedge clk)
+            $past(reset) |-> !valid_pkt && !error_pkt);
+
+    `endif
 
 endmodule

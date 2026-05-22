@@ -2,35 +2,8 @@
 
 \usepackage[margin=2.5cm]{geometry}
 \usepackage{graphicx}
-\usepackage{listings}
-\usepackage{xcolor}
-\usepackage{hyperref}
 \usepackage{enumitem}
-
-\lstdefinelanguage{SystemVerilog}{
-    morekeywords={module,endmodule,input,output,wire,reg,logic,always,posedge,
-        negedge,if,else,begin,end,case,endcase,assign,parameter,localparam,
-        assert,assume,property,endproperty,disable,iff,initial,past,inside,
-        default,ifdef,endif},
-    sensitive=true,
-    morecomment=[l]{//},
-    morecomment=[s]{/*}{*/},
-    morestring=[b]"
-}
-
-\lstset{
-    basicstyle=\ttfamily\footnotesize,
-    keywordstyle=\color{blue}\bfseries,
-    commentstyle=\color{gray}\itshape,
-    stringstyle=\color{red!70!black},
-    breaklines=true,
-    showstringspaces=false,
-    frame=single,
-    rulecolor=\color{black!30},
-    language=SystemVerilog,
-    tabsize=4,
-    captionpos=b
-}
+\usepackage{hyperref}
 
 \title{PV Lab 7 -- Formal Verification of the Packet FSM}
 \author{Dan Joshua Hagen}
@@ -53,107 +26,26 @@
 
 \section{Packet Formal Statements}
 
-This section lists the \texttt{assume}/\texttt{assert} statements added to the
-\texttt{packet.sv} module to formally verify it with EBMC. The full set is
-located between the \texttt{`ifdef FORMAL} / \texttt{`endif} guards.
+Planned \texttt{assume}/\texttt{assert} statements to be added in the
+\texttt{`ifdef FORMAL} block of \texttt{packet.sv}.
 
-\subsection{Assumptions}
-
-These constrain the environment so that the formal tool only explores legal
-scenarios:
-
+\subsection*{Assumptions}
 \begin{itemize}[leftmargin=*]
-    \item \textbf{Start in reset.} The design is only meant to operate after a
-        proper reset, so we force the very first cycle to be a reset cycle and
-        require the state to enter \texttt{IDLE} on reset. This avoids
-        spurious counter-examples that start from arbitrary register values.
-    \item \textbf{\texttt{chk\_ok} and \texttt{chk\_fail} are mutually
-        exclusive.} A real checksum check cannot report both \emph{pass} and
-        \emph{fail} in the same cycle, so we tell the tool not to explore that
-        input combination.
+    \item Start in reset.
+    \item \texttt{chk\_ok} and \texttt{chk\_fail} are mutually exclusive.
 \end{itemize}
 
-\begin{lstlisting}[caption={Assumptions on the environment.}]
-initial assume(reset);
-always @(posedge clk) if (reset) assume(state == IDLE);
-
-assume property (@(posedge clk)
-    !(chk_ok && chk_fail));
-\end{lstlisting}
-
-\subsection{Assertions}
-
-\subsubsection{State transitions}
-
-For every legal stimulus we assert that the FSM advances to the expected next
-state. There is one assertion per transition in the FSM graph.
-
-\textit{e.g.} from \texttt{HEADER}, asserting \texttt{hdr\_done} (and not
-\texttt{abort}/\texttt{reset}) must move the FSM to \texttt{PAYLOAD}:
-
-\begin{lstlisting}[caption={Example: HEADER $\rightarrow$ PAYLOAD on \texttt{hdr\_done}.}]
-assert property (@(posedge clk) disable iff (reset)
-    past_valid && !$past(reset || abort) && ($past(hdr_done) && $past(state) == HEADER)
-        |-> state == PAYLOAD);
-\end{lstlisting}
-
-Analogous assertions cover \texttt{IDLE}$\rightarrow$\texttt{HEADER},
-\texttt{PAYLOAD}$\rightarrow$\texttt{CHECKSUM},
-\texttt{CHECKSUM}$\rightarrow$\texttt{DONE} (with \texttt{valid\_pkt}),
-\texttt{CHECKSUM}$\rightarrow$\texttt{IDLE} (with \texttt{error\_pkt}), and
-the automatic \texttt{DONE}$\rightarrow$\texttt{IDLE}.
-
-\subsubsection{State holding}
-
-When the triggering input is not asserted (and no reset/abort), the FSM must
-remain in its current state. One assertion per such state.
-
-\textit{e.g.} \texttt{HEADER} stays in \texttt{HEADER} while \texttt{hdr\_done}
-is low:
-
-\begin{lstlisting}[caption={Example: state holding in \texttt{HEADER}.}]
-assert property (@(posedge clk) disable iff (reset)
-    past_valid && !$past(reset || abort) && (!$past(hdr_done) && $past(state) == HEADER)
-        |-> state == HEADER);
-\end{lstlisting}
-
-\subsubsection{Abort and reset go to \texttt{IDLE}}
-
-From any state, asserting \texttt{abort} or \texttt{reset} must bring the FSM
-back to \texttt{IDLE} on the next cycle.
-
-\begin{lstlisting}[caption={Reset/abort dominate.}]
-assert property (@(posedge clk)
-    $past(reset || abort) |-> state == IDLE);
-\end{lstlisting}
-
-\subsubsection{Reset clears the output signals}
-
-After a reset cycle, both \texttt{valid\_pkt} and \texttt{error\_pkt} must be
-low.
-
-\begin{lstlisting}[caption={Reset clears outputs.}]
-assert property (@(posedge clk)
-    $past(reset) |-> !valid_pkt && !error_pkt);
-\end{lstlisting}
-
-\subsubsection{Output signals are single-cycle pulses tied to the correct
-transition}
-
-\texttt{valid\_pkt} (resp. \texttt{error\_pkt}) may only be high in the cycle
-immediately after a successful (resp. failed) checksum, and never together.
-This catches the FSM raising a flag in the wrong state or holding it high.
-
-\begin{lstlisting}[caption={Output flags are mutually exclusive and bound to the right transition.}]
-assert property (@(posedge clk) disable iff (reset)
-    !(valid_pkt && error_pkt));
-
-assert property (@(posedge clk) disable iff (reset)
-    valid_pkt |-> $past(state) == CHECKSUM && $past(chk_ok) && !$past(abort));
-
-assert property (@(posedge clk) disable iff (reset)
-    error_pkt |-> $past(state) == CHECKSUM && $past(chk_fail) && !$past(chk_ok) && !$past(abort));
-\end{lstlisting}
+\subsection*{Assertions}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{State transitions} -- one per FSM edge.\\
+        \textit{e.g.} \texttt{HEADER $\rightarrow$ PAYLOAD} when \texttt{hdr\_done}.
+    \item \textbf{State holding} -- stay in the same state when the trigger is low.\\
+        \textit{e.g.} \texttt{HEADER $\rightarrow$ HEADER} when \texttt{hdr\_done} is low.
+    \item \textbf{Abort and reset} force the FSM to \texttt{IDLE}.
+    \item \textbf{Reset clears} the output signals.
+    \item \textbf{Output signals are single-cycle pulses.}
+    \item \textbf{Output signals are mutually exclusive} and only asserted on the correct state transition.
+\end{itemize}
 
 \section{Tool Output -- Clean Design}
 
