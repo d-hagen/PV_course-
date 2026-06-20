@@ -19,7 +19,7 @@ SCENARIO ?=
 VERB     ?= UVM_MEDIUM
 
 VLOG_FLAGS = -sv -mfcu +acc
-COV_FLAGS  = -cover bcefsx
+COV_FLAGS  = +cover=bcefst
 
 PLUS = +UVM_TESTNAME=$(UVM_TEST) +UVM_VERBOSITY=$(VERB) +NUM_TX=$(NUM_TX)
 ifneq ($(SCENARIO),)
@@ -46,17 +46,17 @@ run:
 # ---- run with coverage, save a per-test UCDB ----------------------------
 run_cov:
 	vsim -c -coverage $(TOP) -sv_seed $(SEED) $(PLUS) \
-	     -do "run -all; coverage save cov_$(UVM_TEST).ucdb; quit -f"
+	     -do "coverage save -onexit cov_$(UVM_TEST).ucdb; run -all; quit -f"
 
 # ---- run in GUI ---------------------------------------------------------
 gui:
 	vsim $(TOP) -sv_seed $(SEED) $(PLUS) -do "run -all"
 
-# ---- merge per-test coverage + text report ------------------------------
+# ---- merge per-test coverage + text/html report -------------------------
 merge:
 	vcover merge merged.ucdb cov_*.ucdb
-	vcover report -details -output cov_report.txt merged.ucdb
-	vcover report -html -htmldir cov_html merged.ucdb
+	vcover report -details merged.ucdb > cov_report.txt
+	vcover report -html -output cov_html merged.ucdb
 
 # ---- run all three tests (functional, no coverage) ----------------------
 test_all: compile
@@ -66,9 +66,9 @@ test_all: compile
 
 # ---- convenience: full coverage regression over the three tests ---------
 regress: compile_cov
-	vsim -c -coverage $(TOP) -sv_seed 1  +UVM_TESTNAME=gcd_test_smoke    -do "run -all; coverage save cov_smoke.ucdb; quit -f"
-	vsim -c -coverage $(TOP) -sv_seed 7  +UVM_TESTNAME=gcd_test_directed -do "run -all; coverage save cov_directed.ucdb; quit -f"
-	vsim -c -coverage $(TOP) -sv_seed 42 +UVM_TESTNAME=gcd_test_random +NUM_TX=1000 -do "run -all; coverage save cov_random.ucdb; quit -f"
+	vsim -c -coverage $(TOP) -sv_seed 1  +UVM_TESTNAME=gcd_test_smoke    -do "coverage save -onexit cov_smoke.ucdb; run -all; quit -f"
+	vsim -c -coverage $(TOP) -sv_seed 7  +UVM_TESTNAME=gcd_test_directed -do "coverage save -onexit cov_directed.ucdb; run -all; quit -f"
+	vsim -c -coverage $(TOP) -sv_seed 42 +UVM_TESTNAME=gcd_test_random +NUM_TX=1000 -do "coverage save -onexit cov_random.ucdb; run -all; quit -f"
 	$(MAKE) merge
 
 clean:
