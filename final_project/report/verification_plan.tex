@@ -109,7 +109,7 @@ it characterises, the test that exercises it, and
 the assertion that guards it at simulation time.
 
 {\small
-\begin{longtable}{@{}p{1.5cm} p{6.5cm} p{3.5cm} p{1.7cm} p{1.7cm}@{}}
+\begin{longtable}{@{}p{1.3cm} p{5.0cm} p{2.8cm} p{1.4cm} p{3.2cm}@{}}
 \toprule
 \textbf{Req ID} & \textbf{Requirement} & \textbf{Feature} & \textbf{Test ID} & \textbf{Assertion ID} \\
 \midrule
@@ -123,45 +123,48 @@ the assertion that guards it at simulation time.
 \bottomrule
 \endfoot
 
-RQ-M01 & Zero operand returns the other operand & Zero-operand handling & D1 & \\
+RQ-M01 & Zero operand returns the other operand & Zero-operand handling & D1 & \texttt{A\_EARLY\_EXIT}, SB \\
 
-RQ-M02 & Equal operands return that value & Equal-operand handling & D2 & \\
+RQ-M02 & Equal operands return that value & Equal-operand handling & D2 & \texttt{A\_EARLY\_EXIT}, SB \\
 
-RQ-M03 & GCD result is mathematically correct for general operand pairs & General computation & D3, D4, D5 & \\
+RQ-M03 & GCD result is mathematically correct for general operand pairs & General computation & D3, D4, D5 & SB \\
 
-RQ-F01 & FSM stays within legal state set & Legal-state invariant & D1--D7 & \\
+RQ-F01 & FSM stays within legal state set & Legal-state invariant & D1--D8 & \texttt{A\_STATE\_LEGAL} \\
 
-RQ-F02 & Early-exit takes IDLE to DONE in one cycle & Early-exit transition & D1, D2 & \\
+RQ-F02 & Early-exit takes IDLE to DONE in one cycle & Early-exit transition & D1, D2 & \texttt{A\_EARLY\_EXIT} \\
 
-RQ-F03 & Non-trivial input drives IDLE to RUN & General-path transition & D3, D4, D5 & \\
+RQ-F03 & Non-trivial input drives IDLE to RUN, and RUN to DONE on convergence & General-path transition & D3, D4, D5 & \texttt{A\_GENERAL\_RUN}, \texttt{A\_RUN\_CONVERGE} \\
 
-RQ-F04 & Output handshake returns to IDLE & Result acceptance & D1--D7 & \\
+RQ-F04 & Output handshake returns to IDLE & Result acceptance & D1--D8 & \texttt{A\_DONE\_IDLE} \\
 
-RQ-H01 & \texttt{in\_ready} high only in IDLE & Input handshake gating & D1--D7 & \\
+RQ-H01 & \texttt{in\_ready} high only in IDLE & Input handshake gating & D1--D8 & \texttt{A\_INRDY\_IDLE} \\
 
-RQ-H02 & \texttt{out\_valid} high for entire DONE & Output handshake gating & D1--D7 & \\
+RQ-H02 & \texttt{out\_valid} high for entire DONE & Output handshake gating & D1--D8 & \texttt{A\_OUTVLD\_DONE}, \texttt{A\_OUTVLD\_HELD} \\
 
-RQ-H03 & \texttt{gcd\_out} stable under back-pressure & Output stability & D7 & \\
+RQ-H03 & \texttt{gcd\_out} stable under back-pressure & Output stability & D7 & \texttt{A\_OUT\_STABLE} \\
 
-RQ-H04 & \texttt{gcd\_out} sourced from dedicated result register & Dedicated output register & D7 & \\
+RQ-H04 & \texttt{gcd\_out} sourced from dedicated result register & Dedicated output register & D7 & \texttt{A\_RESULT\_REG} \\
 
-RQ-R01 & Reset clears all registers and outputs synchronously & Reset values & & \\
+RQ-R01 & Reset clears all registers and outputs synchronously & Reset values & D8 & \texttt{A\_RST\_CLEAR} \\
 
-RQ-R02 & Module accepts input on first edge after reset release & Post-reset readiness & & \\
+RQ-R02 & Module accepts input on first edge after reset release & Post-reset readiness & D8 & \texttt{A\_RST\_READY} \\
 
-RQ-L01 & Early-exit latency is 1 cycle & Early-exit latency & D1, D2 & \\
+RQ-L01 & Early-exit latency is 1 cycle & Early-exit latency & D1, D2 & \texttt{A\_EARLY\_EXIT}, SB \\
 
-RQ-L02 & General latency is $1+N$ cycles & General-case latency & D3, D4 & \\
+RQ-L02 & General latency is $1+N$ cycles & General-case latency & D3, D4 & SB \\
 
-RQ-T01 & Back-to-back transactions without idle gap & Sequential throughput & D6 & \\
+RQ-T01 & Back-to-back transactions without idle gap & Sequential throughput & D6 & \texttt{A\_DONE\_IDLE}, SB \\
+
+RQ-P01 & Operands and \texttt{in\_valid} held stable while \texttt{in\_valid} high and \texttt{in\_ready} low & Input handshake stability & D1--D8 & \texttt{A\_IN\_STABLE}, \texttt{A\_INVLD\_HELD} \\
 
 \end{longtable}
 
 \vspace{-0.5em}
 {\scriptsize \itshape \color{gray!70!black}
-Req ID legend: M = Math \quad F = FSM \quad H = Handshake \quad R = Reset \quad L = Latency \quad T = Throughput \\
-Test ID legend (all are \texttt{gcd\_test\_directed} runs):
-D1 = zero \quad D2 = equal \quad D3 = max \quad D4 = coprime \quad D5 = pow2 \quad D6 = back\_to\_back \quad D7 = any scenario with \texttt{+OUT\_BP} (back-pressure)
+Req ID legend: M = Math \quad F = FSM \quad H = Handshake \quad R = Reset \quad L = Latency \quad T = Throughput \quad P = Protocol \\
+Test ID legend --- each D\textit{n} is a \texttt{gcd\_test\_directed} scenario, runnable on its own with \texttt{+SCENARIO=<name>}:
+D1 = zero \quad D2 = equal \quad D3 = max \quad D4 = coprime \quad D5 = pow2 \quad D6 = back\_to\_back \quad D7 = backpressure \quad D8 = reset. \\
+The smoke test (\texttt{gcd\_test\_smoke}) re-runs D1 and D6 for bring-up; the random test (\texttt{gcd\_test\_random}) re-exercises every requirement under constrained-random stimulus with random back-pressure. SB = checked by the scoreboard reference model rather than a dedicated assertion.
 \par}
 }
 
@@ -192,11 +195,11 @@ Stimulus genration is split in 3 groups:
 Three checking mechanisms run simultaneously:
 
 \begin{enumerate}
-    \item \textbf{Reference model.} The scoreboard pairs every captured \texttt{(a, b)} with the DUT's emitted \texttt{gcd\_out} in FIFO order and compares the value against \texttt{gcd\_ref(a, b)}. A latency check fires on the first cycle that \texttt{out\_valid} is asserted, comparing the measured latency against the spec-mandated latency. On reset, the scoreboard drains its queues and cancels any in-flight latency watch.
+    \item \textbf{Reference model.} The DUT processes one operand pair at a time, so the scoreboard tracks a single outstanding transaction. On each captured \texttt{(a, b)} it computes the golden value via \texttt{gcd\_ref(a, b)} (modulo Euclid) and the expected latency, records the input timestamp, and sets a \texttt{pending} flag. On the following \texttt{out\_valid} rising edge it compares the observed \texttt{gcd\_out} against the golden value and the measured latency (derived from \texttt{\$time}) against the expected latency, then clears \texttt{pending}. On reset it clears \texttt{pending} and the in-flight expectation.
 
-    \item \textbf{Assertions.} SystemVerilog assertions check the spec's protocol and timing rules every clock cycle. Every assertion is silenced while reset is active , matching the synchronous-reset behaviour. Assertions mostly check external pins with a small number of exceptions to observe if the internal state machine of the DUT follows the specified behavior.
+    \item \textbf{Assertions.} SystemVerilog assertions check the spec's protocol and timing rules every clock cycle. Every assertion is silenced while reset is active, matching the synchronous-reset behaviour. Assertions mostly check external pins, with a small number of exceptions that observe the internal FSM to confirm it follows the specified behaviour.
 
-    \item \textbf{End-of-test drain check.} At simulation end the scoreboard's \texttt{check\_phase} verifies both transaction queues are empty. A leftover transaction means the DUT swallowed an input without producing an output (or vice versa).
+    \item \textbf{Pending-flag protocol check.} The same \texttt{pending} flag flags unpaired traffic: a new input arriving while a result is still outstanding, or a result appearing with no pending input, each raises a \texttt{UVM\_ERROR}. The scoreboard's \texttt{report\_phase} prints the total/failed check tally at the end of the test.
 \end{enumerate}
 
 \subsection{Reusability and Runtime Control}
@@ -257,7 +260,7 @@ transaction fields --- the drivers own the protocol mechanics.
 \subsection*{Agents}
 \begin{description}
     \item[Input agent (active):] sequencer + driver + monitor. The driver runs the \texttt{in\_valid}/\texttt{in\_ready} handshake; the monitor publishes a \texttt{gcd\_in\_tx} on each captured input handshake.
-    \item[Output agent (active):] drives \texttt{out\_ready} as a stream of waveform segments; the monitor emits two analysis ports --- \texttt{ap\_avail} at the \texttt{out\_valid} rising edge (result available, used for value + latency) and \texttt{ap\_done} at the output handshake (result consumed).
+    \item[Output agent (active):] drives \texttt{out\_ready} as a stream of waveform segments; the monitor publishes a \texttt{gcd\_result\_tx} on \texttt{ap\_avail} at the \texttt{out\_valid} rising edge (result available, used for the value and latency checks).
     \item[Reset agent (active):] drives \texttt{rst\_n} (power-on reset plus any mid-flight pulses); the reset monitor publishes a pulse on each \texttt{rst\_n} falling edge.
 \end{description}
 
@@ -266,8 +269,8 @@ The virtual sequencer holds handles to the three channel sequencers. Virtual
 sequences coordinate the channels by starting sub-sequences on those handles:
 the directed virtual sequence pairs one directed input scenario with the matching
 output behaviour (and, for the reset scenario, a mid-flight reset pulse); the
-random virtual sequence forks a random input stream, a random back-pressure
-stream, and a mostly-idle random reset stream.
+random virtual sequence forks a random input stream against a random
+back-pressure stream.
 
 \subsection*{Scoreboard}
 The scoreboard receives the input, result-available, and reset streams. On each
@@ -280,9 +283,11 @@ wipes the in-flight state. A pending flag detects unpaired inputs/outputs; a
 \texttt{report\_phase} prints the pass/fail tally.
 
 \subsection*{Coverage}
-A subscriber samples a covergroup every clock (handshake states, operand/result
-value classes, the operand cross, equal-operand) plus a reset covergroup sampled
-on each reset assertion. Details in Section~5.
+A subscriber samples a covergroup every clock (handshake-signal crosses, operand
+and result value classes, the operand cross, equal-operand, and the FSM state with
+its legal transitions) plus a back-pressure stall-duration covergroup sampled at
+each output handshake and a reset covergroup sampled on each reset assertion.
+Details in Section~5.
 
 \subsection*{Assertions}
 A separate \texttt{gcd\_assertions} module is \texttt{bind}-ed into the DUT, giving
@@ -309,17 +314,19 @@ Sampled by the coverage subscriber. Goal: every bin hit at least once.
 \midrule
 handshake state (in) & cross \texttt{in\_valid}$\times$\texttt{in\_ready}: handshake complete, input-not-valid, gcd-not-ready, idle \\
 handshake state (out) & cross \texttt{out\_ready}$\times$\texttt{out\_valid}: handshake complete, result-waiting, taker-waiting, idle \\
-\texttt{cp\_a} / \texttt{cp\_b} & operand value class: zero, low, mid, high \\
+\texttt{a\_in} / \texttt{b\_in} & operand value class: zero, one, low, mid, high, max \\
 \texttt{a}$\times$\texttt{b} cross & both-low, both-high, a-low/b-high, a-high/b-low, a-zero, b-zero, both-zero \\
-\texttt{a\_eq\_b} & equal vs not-equal operands, sampled only at the input handshake (RQ-M02) \\
-\texttt{gcd\_out} class & result value class: low, mid, high \\
+\texttt{a\_eq\_b} & equal vs not-equal operands (RQ-M02) \\
+\texttt{gcd\_out} class & result value class: zero, one, low, mid, high, max \\
+\texttt{fsm\_state} & FSM state derived from \texttt{in\_ready}/\texttt{out\_valid}: IDLE, RUN, DONE, plus transitions IDLE$\to$RUN, IDLE$\to$DONE, RUN$\to$DONE, DONE$\to$IDLE (RQ-F01--F04) \\
+back-pressure stall & cycles \texttt{out\_valid} is held before the output handshake: none, 1, 2--3, $\geq 4$ (RQ-H03) \\
 reset state & reset asserted during IDLE / RUN / DONE (RQ-R01/R02; RUN \& DONE prove mid-flight reset) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection*{Code coverage}
-Collected with \texttt{vlog -cover bcefsx} (branch, condition, expression, FSM,
+Collected with \texttt{vlog +cover=bcefst} (branch, condition, expression, FSM,
 statement, toggle) and merged across tests with \texttt{vcover merge}. Goal:
 $\geq 95\%$ statement/branch/FSM, with any gap explained (e.g. unreachable
 \texttt{default} states).

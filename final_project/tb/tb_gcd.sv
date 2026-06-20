@@ -14,7 +14,6 @@ package gcd_pkg;
 
     `uvm_analysis_imp_decl(_in)
     `uvm_analysis_imp_decl(_avail)
-    `uvm_analysis_imp_decl(_done)
     `uvm_analysis_imp_decl(_rst)
 
 
@@ -121,9 +120,6 @@ package gcd_pkg;
         function new(string name = "gcd_in_seq_base");
             super.new(name);
         endfunction
-    endclass
-
-    class gcd_in_seq_smoke extends gcd_in_seq_base;
     endclass
 
     class gcd_in_seq_random extends gcd_in_seq_base;
@@ -297,18 +293,6 @@ package gcd_pkg;
         endtask
     endclass
 
-    class gcd_rst_seq_random extends gcd_rst_seq_base;
-        `uvm_object_utils(gcd_rst_seq_random)
-        function new(string name = "gcd_rst_seq_random");
-            super.new(name);
-        endfunction
-        task body();
-            forever
-                `uvm_do_with(req, { assert_cycles dist { 0 := 95, [1:2] := 5 }; })
-        endtask
-    endclass
-
-
     // ---- drivers -----------------------------------------------------------
     class gcd_in_driver extends uvm_driver #(gcd_in_tx);
         `uvm_component_utils(gcd_in_driver)
@@ -472,13 +456,11 @@ package gcd_pkg;
 
         virtual gcd_if.mp_mon vif;
         uvm_analysis_port #(gcd_result_tx) ap_avail;
-        uvm_analysis_port #(gcd_result_tx) ap_done;
 
 
         function new(string name = "gcd_result_monitor", uvm_component parent = null);
             super.new(name, parent);
             ap_avail = new("ap_avail", this);
-            ap_done = new("ap_done", this);
         endfunction
 
         function void build_phase(uvm_phase phase);
@@ -496,13 +478,6 @@ package gcd_pkg;
 
             forever begin
                 @(vif.cb_mon);
-
-                if (vif.cb_mon.out_valid && vif.cb_mon.out_ready) begin
-                    tx = gcd_result_tx::type_id::create("tx");
-                    tx.gcd_out = vif.cb_mon.gcd_out;
-                    ap_done.write(tx);
-                    `uvm_info("MON_full_out", tx.convert2string(), UVM_MEDIUM)
-                end
 
                 if (vif.cb_mon.out_valid &&  !prev_valid ) begin
                     tx = gcd_result_tx::type_id::create("tx");
@@ -763,7 +738,6 @@ package gcd_pkg;
 
         uvm_analysis_imp_in    #(gcd_in_tx,     gcd_scoreboard) ap_in;
         uvm_analysis_imp_avail #(gcd_result_tx, gcd_scoreboard) ap_avail;
-        uvm_analysis_imp_done  #(gcd_result_tx, gcd_scoreboard) ap_done;
         uvm_analysis_imp_rst   #(bit,           gcd_scoreboard) ap_rst;
 
         bit pending;
@@ -780,7 +754,6 @@ package gcd_pkg;
             super.new(name, parent);
             ap_in = new("ap_in", this);
             ap_avail = new("ap_avail", this);
-            ap_done = new("ap_done", this);
             ap_rst = new("ap_rst", this);
         endfunction
 
@@ -849,9 +822,6 @@ package gcd_pkg;
             expected = '0;
         endfunction
 
-        function void write_done(gcd_result_tx tx);
-        endfunction
-
          function void report_phase(uvm_phase phase);
             `uvm_info("SCB", $sformatf("Read checks: total=%0d failed=%0d", total_tests, failed_tests), UVM_LOW)
         endfunction
@@ -904,7 +874,8 @@ package gcd_pkg;
             bins mid_bins   = {[WIDTH_LOW+1:WIDTH_HI-1]};
             bins high_bins  = {[WIDTH_HI:VAL_MAX]};
             bins zero       = {0};
-
+            bins one        = {1};
+            bins max        = {VAL_MAX};
         }
 
         b_in : coverpoint vif.cb_mon.b_in {
@@ -912,6 +883,8 @@ package gcd_pkg;
             bins mid_bins   = {[WIDTH_LOW+1:WIDTH_HI-1]};
             bins high_bins  = {[WIDTH_HI:VAL_MAX]};
             bins zero       = {0};
+            bins one        = {1};
+            bins max        = {VAL_MAX};
         }
 
         cross a_in, b_in {
@@ -928,11 +901,25 @@ package gcd_pkg;
             bins lower_bins = {[0:WIDTH_LOW]};
             bins mid_bins   = {[WIDTH_LOW+1:WIDTH_HI-1]};
             bins high_bins  = {[WIDTH_HI:VAL_MAX]};
+            bins zero       = {0};
+            bins one        = {1};
+            bins max        = {VAL_MAX};
         }
 
         a_eq_b : coverpoint (vif.cb_mon.a_in == vif.cb_mon.b_in) {
             bins equal     = {1};
             bins not_equal = {0};
+        }
+
+        fsm_state : coverpoint (vif.cb_mon.in_ready  ? 2'd0 :
+                                vif.cb_mon.out_valid ? 2'd2 : 2'd1) {
+            bins idle        = {2'd0};
+            bins run         = {2'd1};
+            bins done        = {2'd2};
+            bins t_idle_run  = (2'd0 => 2'd1);
+            bins t_idle_done = (2'd0 => 2'd2);
+            bins t_run_done  = (2'd1 => 2'd2);
+            bins t_done_idle = (2'd2 => 2'd0);
         }
 
         endgroup
@@ -947,10 +934,22 @@ package gcd_pkg;
             }
         endgroup
 
+        int unsigned stall_len = 0;
+
+        covergroup bp_cg;
+            bp_stall : coverpoint stall_len {
+                bins none = {0};
+                bins one  = {1};
+                bins few  = {[2:3]};
+                bins many = {[4:$]};
+            }
+        endgroup
+
         function new(string name, uvm_component parent);
             super.new(name, parent);
             gcd_cg   = new();
             reset_cg = new();
+            bp_cg    = new();
         endfunction
 
         function void build_phase(uvm_phase phase);
@@ -967,6 +966,16 @@ package gcd_pkg;
             forever begin
                 @(vif.cb_mon);
                 gcd_cg.sample();
+
+                if (vif.cb_mon.out_valid && vif.cb_mon.out_ready) begin
+                    bp_cg.sample();
+                    stall_len = 0;
+                end else if (vif.cb_mon.out_valid && !vif.cb_mon.out_ready) begin
+                    stall_len++;
+                end else begin
+                    stall_len = 0;
+                end
+
                 if (prev_rst && !vif.rst_n) begin
                     if      (vif.cb_mon.in_ready)  reset_state_q = 2'd0;
                     else if (vif.cb_mon.out_valid) reset_state_q = 2'd2;
@@ -1017,7 +1026,6 @@ package gcd_pkg;
 
             in_agent.mon.analysis_port.connect(sb.ap_in);
             out_agent.mon.ap_avail.connect(sb.ap_avail);
-            out_agent.mon.ap_done.connect(sb.ap_done);
             rst_agent.mon.analysis_port.connect(sb.ap_rst);
 
             in_agent.mon.analysis_port.connect(cov.analysis_export);
@@ -1240,86 +1248,86 @@ module gcd_assertions #(parameter int unsigned WIDTH = `TB_WIDTH) (
 
     
 
-    assert property (
+    A_RST_CLEAR : assert property (
       @(posedge clk)
       !rst_n |=> (state == IDLE) && (result_reg == 0) && (gcd_out == 0) && (out_valid == 0)
     ) else $error("reset didnt clear dut state ");
 
-    assert property (
+    A_RST_READY : assert property (
       @(posedge clk)
       $rose(rst_n) |-> in_ready
     ) else $error("module not ready on first edge after reset release");
 
-    assert property (
+    A_STATE_LEGAL : assert property (
       @(posedge clk)
       disable iff (!rst_n)
       state inside {IDLE, RUN, DONE}
     ) else $error("DUT in illegale internal state");
 
-    assert property (
+    A_EARLY_EXIT : assert property (
       @(posedge clk)
       disable iff (!rst_n)
-      (a_in==0 || b_in == 0 || a_in==b_in ) && (in_valid && in_ready) |=> (state == DONE) && out_valid
+      (a_in==0 || b_in == 0 || a_in==b_in ) && (in_valid && in_ready) |-> (state == DONE) && out_valid
     ) else $error("early exit transition not respected");
 
-     assert property (
+     A_GENERAL_RUN : assert property (
       @(posedge clk)
       disable iff (!rst_n)
       (a_in!==0 && b_in !== 0 && a_in!==b_in ) && (in_valid && in_ready) |=> (state == RUN)
     ) else $error("DUT not transitioning to RUN state on valid input");
 
 
-     assert property (
+     A_RUN_CONVERGE : assert property (
       @(posedge clk)
       disable iff (!rst_n)
       (a_next==b_next && state==RUN) |=> (state == DONE)
     ) else $error("DUT state not transitioning to done on a b convergence");
 
-    assert property (
+    A_DONE_IDLE : assert property (
       @(posedge clk)
       disable iff (!rst_n)
       (state == DONE ) && (out_valid && out_ready) |=> (state == IDLE)
     ) else $error("DUT state not transitioning to IDLE after out handshake");
 
 
-    assert property (
+    A_INRDY_IDLE : assert property (
       @(posedge clk)
       disable iff (!rst_n)
       in_ready == (state == IDLE)
     ) else $error("State not idle when in ready / in_ready not asserted when state IDLE");
 
-    assert property (
+    A_OUTVLD_DONE : assert property (
       @(posedge clk)
       disable iff (!rst_n)
       out_valid == (state == DONE)
     ) else $error("State not DONE when out_valid  / out_valid not asserted when state DONE");
 
 
-    assert property (
+    A_RESULT_REG : assert property (
       @(posedge clk)
       disable iff (!rst_n)
       out_valid |-> (result_reg == gcd_out)
     ) else $error("result register doesnt hold gcd_out value");
 
-    assert property (
+    A_IN_STABLE : assert property (
       @(posedge clk)
       disable iff (!rst_n)
       (!in_ready && in_valid) |=> (a_in == $past(a_in)) && (b_in == $past(b_in))
     ) else $error("a_in/ b_in not stable when stalled (input error not DUT)");
 
-    assert property (
+    A_INVLD_HELD : assert property (
       @(posedge clk)
       disable iff (!rst_n)
       (!in_ready && in_valid) |=> in_valid
     ) else $error("in_valid not held when waiting for handshake completion (input error not DUT)");
 
-    assert property (
+    A_OUT_STABLE : assert property (
       @(posedge clk)
       disable iff (!rst_n)
       (out_valid && !out_ready) |=> (gcd_out == $past(gcd_out))
     ) else $error("gcd_out not stable while waiting for out_ready");
 
-    assert property (
+    A_OUTVLD_HELD : assert property (
       @(posedge clk)
       disable iff (!rst_n)
       (out_valid && !out_ready) |=> out_valid
