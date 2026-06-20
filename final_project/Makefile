@@ -45,10 +45,28 @@ run_cov: compile_cov
 
 # ---- coverage regression over the three tests ---------------------------
 regress: compile_cov
-	vsim -c -coverage $(TOP) -sv_seed 1  +UVM_TESTNAME=gcd_test_smoke    -do "coverage save -onexit cov_smoke.ucdb; run -all; quit -f"
-	vsim -c -coverage $(TOP) -sv_seed 7  +UVM_TESTNAME=gcd_test_directed -do "coverage save -onexit cov_directed.ucdb; run -all; quit -f"
-	vsim -c -coverage $(TOP) -sv_seed 42 +UVM_TESTNAME=gcd_test_random +NUM_TX=1000 -do "coverage save -onexit cov_random.ucdb; run -all; quit -f"
+	vsim -c -coverage $(TOP) -l run_smoke.log    -sv_seed 1  +UVM_TESTNAME=gcd_test_smoke    -do "coverage save -onexit cov_smoke.ucdb; run -all; quit -f"
+	vsim -c -coverage $(TOP) -l run_directed.log -sv_seed 7  +UVM_TESTNAME=gcd_test_directed -do "coverage save -onexit cov_directed.ucdb; run -all; quit -f"
+	vsim -c -coverage $(TOP) -l run_random.log   -sv_seed 42 +UVM_TESTNAME=gcd_test_random +NUM_TX=1000 -do "coverage save -onexit cov_random.ucdb; run -all; quit -f"
 	$(MAKE) merge
+	$(MAKE) summary
+
+# ---- regression summary: per-test reports + grand total -----------------
+summary:
+	@total=0; fail=0; \
+	for t in smoke directed random; do \
+	  l=`grep "Total Test :" run_$$t.log | tail -1`; \
+	  tt=`echo "$$l" | sed -E 's/.*Total Test : ([0-9]+).*/\1/'`; \
+	  ff=`echo "$$l" | sed -E 's/.*FAIL test = ([0-9]+).*/\1/'`; \
+	  total=`expr $$total + $$tt`; fail=`expr $$fail + $$ff`; \
+	done; \
+	echo "===== REGRESSION SUMMARY ====="; \
+	echo "Total Test : $$total      FAIL test = $$fail   (smoke + directed + random)"; \
+	echo; \
+	for t in smoke directed random; do \
+	  echo "----- $$t -----"; \
+	  sed -n '/____REPORT____/,/UVM Report Summary/{/UVM Report Summary/!p}' run_$$t.log; \
+	done
 
 # ---- coverage reports ---------------------------------------------------
 merge:
@@ -65,6 +83,6 @@ cov_gui: merge
 	vsim -viewcov merged.ucdb
 
 clean:
-	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html modelsim.ini
+	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html run_*.log modelsim.ini
 
-.PHONY: compile compile_cov run gui run_cov regress merge cov_report cov_html cov_gui clean
+.PHONY: compile compile_cov run gui run_cov regress summary merge cov_report cov_html cov_gui clean
