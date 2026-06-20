@@ -334,7 +334,7 @@ package gcd_pkg;
                 vif.cb_in.a_in     <= tx.a_in;
                 vif.cb_in.b_in     <= tx.b_in;
 
-                `uvm_info("DRV", tx.convert2string(), UVM_MEDIUM)
+                //`uvm_info("DRV", tx.convert2string(), UVM_HIGH)
 
                 do @(vif.cb_in); while (!vif.cb_in.in_ready);
 
@@ -375,7 +375,7 @@ package gcd_pkg;
 
                 repeat (tx.hold_cycles) @(vif.cb_out);
 
-                `uvm_info("DRV", tx.convert2string(), UVM_MEDIUM)
+                //`uvm_info("DRV", tx.convert2string(), UVM_HIGH)
 
                 seq_item_port.item_done();
             end
@@ -409,7 +409,7 @@ package gcd_pkg;
             forever begin
                 seq_item_port.get_next_item(tx);
 
-                `uvm_info("DRV_RST", tx.convert2string(), UVM_MEDIUM)
+                //`uvm_info("DRV_RST", tx.convert2string(), UVM_HIGH)
 
                 vif.cb_rst.rst_n <= 1'b0;                   // assert
                 repeat (tx.assert_cycles) @(vif.cb_rst);
@@ -454,7 +454,7 @@ package gcd_pkg;
                     tx.a_in = vif.cb_mon.a_in;
                     tx.b_in = vif.cb_mon.b_in;
                     analysis_port.write(tx);
-                    `uvm_info("MON_IN", tx.convert2string(), UVM_MEDIUM)
+                    `uvm_info("MON_IN", tx.convert2string(), UVM_HIGH)
                 end
             end
         endtask
@@ -493,7 +493,7 @@ package gcd_pkg;
                     tx = gcd_result_tx::type_id::create("tx");
                     tx.gcd_out = vif.cb_mon.gcd_out;
                     ap_avail.write(tx);
-                    `uvm_info("MON_val_out", tx.convert2string(), UVM_MEDIUM)
+                    `uvm_info("MON_val_out", tx.convert2string(), UVM_HIGH)
                 end
 
                 prev_valid = vif.cb_mon.out_valid;
@@ -527,7 +527,7 @@ package gcd_pkg;
 
                 if (prev_rst && !vif.rst_n) begin
                     analysis_port.write(1'b1);
-                    `uvm_info("MON_RST", "reset asserted", UVM_MEDIUM)
+                    `uvm_info("MON_RST", "reset asserted", UVM_HIGH)
                 end
 
                 prev_rst = vif.rst_n;
@@ -757,13 +757,24 @@ package gcd_pkg;
         uvm_analysis_imp_rst   #(bit,           gcd_scoreboard) ap_rst;
 
         bit pending;
+        bit [WIDTH-1:0] a_q, b_q;
         bit [WIDTH-1:0] expected;
         int unsigned expected_lat;
         time t_in;
         localparam int unsigned CLK_PERIOD = 10;
 
+        string scope_label = "random";
+
         int total_tests = 0;
         int failed_tests = 0;
+
+        typedef struct {
+            string          scenario;
+            bit [WIDTH-1:0] a, b;
+            bit [WIDTH-1:0] obs_gcd, exp_gcd;
+            int unsigned    obs_lat, exp_lat;
+        } fail_rec_t;
+        fail_rec_t fails[$];
 
         
         function new(string name = "gcd_scoreboard", uvm_component parent = null);
@@ -807,6 +818,8 @@ package gcd_pkg;
             if (pending)
                 `uvm_error("SCB", $sformatf("new input a=%0d b=%0d while previous result still pending", tx.a_in, tx.b_in))
             else begin
+                a_q = tx.a_in;
+                b_q = tx.b_in;
                 expected = gcd_ref(tx.a_in, tx.b_in);
                 expected_lat = expected_latency(tx.a_in, tx.b_in);
                 t_in = $time;
@@ -822,13 +835,9 @@ package gcd_pkg;
             end
             measured_lat = ($time - t_in) / CLK_PERIOD;
             total_tests++;
-            if (tx.gcd_out !== expected) begin
+            if (tx.gcd_out !== expected || measured_lat != expected_lat) begin
                 failed_tests++;
-                `uvm_error("SCB", $sformatf("expected=%0d observed=%0d", expected, tx.gcd_out))
-            end
-            if (measured_lat != expected_lat) begin
-                failed_tests++;
-                `uvm_error("SCB", $sformatf("latency mismatch expected=%0d measured=%0d", expected_lat, measured_lat))
+                fails.push_back('{scope_label, a_q, b_q, tx.gcd_out, expected, measured_lat, expected_lat});
             end
             pending = 0;
         endfunction
@@ -839,7 +848,19 @@ package gcd_pkg;
         endfunction
 
          function void report_phase(uvm_phase phase);
-            `uvm_info("SCB", $sformatf("Read checks: total=%0d failed=%0d", total_tests, failed_tests), UVM_LOW)
+            $display("\n____REPORT____\n");
+            $display("Total Test : %0d      FAIL test = %0d\n", total_tests, failed_tests);
+            if (fails.size() > 0) begin
+                $display("Failed Test:\n");
+                foreach (fails[i]) begin
+                    $display("%s", fails[i].scenario);
+                    $display("a_in = %0d , b_in = %0d , gcd_out= %0d , delay= %0d Expected: gcd_out = %0d delay = %0d\n",
+                             fails[i].a, fails[i].b, fails[i].obs_gcd, fails[i].obs_lat,
+                             fails[i].exp_gcd, fails[i].exp_lat);
+                end
+            end
+            if (failed_tests > 0)
+                `uvm_error("SCB", $sformatf("%0d scoreboard check(s) failed", failed_tests))
         endfunction
     endclass
 
@@ -1085,7 +1106,8 @@ package gcd_pkg;
         task run_one(dir_scenario_e scn);
             gcd_vseq_directed vseq;
             vseq = gcd_vseq_directed::type_id::create("vseq");
-            vseq.scenario = scn;   // output behaviour is derived from the scenario
+            vseq.scenario = scn;
+            env.sb.scope_label = scn.name();
             vseq.start(env.v_sqr);
         endtask
 
@@ -1134,7 +1156,8 @@ package gcd_pkg;
         task run_one(dir_scenario_e scn);
             gcd_vseq_directed vseq;
             vseq = gcd_vseq_directed::type_id::create("vseq");
-            vseq.scenario = scn;   // output behaviour is derived from the scenario
+            vseq.scenario = scn;
+            env.sb.scope_label = scn.name();
             vseq.start(env.v_sqr);
         endtask
 

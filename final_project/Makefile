@@ -59,6 +59,7 @@ cov_report: merge
 
 cov_html: merge
 	vcover report -html -output cov_html merged.ucdb
+	xdg-open cov_html/index.html
 
 clean:
 	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html modelsim.ini
