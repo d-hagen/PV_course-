@@ -1,0 +1,106 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
+\usepackage[table]{xcolor}
+
+\renewcommand{\arraystretch}{1.25}
+
+\title{Coverage Report \\ \large GCD Module (UPC MIRI -- PV)}
+\author{Dan Hagen}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Methodology}
+
+Coverage is collected over three \texttt{uvm\_test}s --- \emph{smoke} (bring-up),
+\emph{directed} (corner scenarios), and \emph{random} (constrained-random,
+1000~transactions) --- each run as an independent simulation. Every run is
+instrumented with QuestaSim code coverage (\texttt{+cover=bcefst}: statement,
+branch, condition, expression, FSM, toggle) and samples the functional
+covergroups in the coverage subscriber. Per-test databases are saved and combined
+with \texttt{vcover merge}; the merged database is the closure figure. In parallel,
+14 \texttt{bind}-ed SVA assertions are checked every cycle.
+
+\section{Coverage Progression}
+
+Coverage is reported per test and merged, showing how the directed and random
+tests close the goals that the smoke test only partially reaches. Expression
+coverage is 100\% in every run and is omitted from the table.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lccccccc}
+\toprule
+\textbf{Test} & \textbf{Functional} & \textbf{Stmt} & \textbf{Branch} & \textbf{Cond} & \textbf{FSM St} & \textbf{FSM Tr} & \textbf{Toggle} \\
+\midrule
+smoke              & 44.14\% & 88.00\% & 81.81\% & 57.14\% & 100\% & 80.00\%  & 25.09\% \\
+directed           & 81.05\% & 96.00\% & 90.90\% & 71.42\% & 100\% & 100\%    & 100\%   \\
+random             & 77.77\% & 96.00\% & 90.90\% & 71.42\% & 100\% & 80.00\%  & 99.63\% \\
+\midrule
+\textbf{merged}    & \textbf{100.00\%} & \textbf{96.00\%} & \textbf{90.90\%} & \textbf{71.42\%} & \textbf{100\%} & \textbf{100\%} & \textbf{100\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Functional coverage closes to 100\%} on the merged database: the
+directed test supplies the reset-state and corner-value bins the random test
+cannot reach, while the random test fills the operand-value cross bins, so the two
+are complementary.
+
+\section{Final Code Coverage (merged) and Residual Gaps}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Covered / Bins} & \textbf{Coverage} \\
+\midrule
+Statements        & 24 / 25   & 96.00\%  \\
+Branches          & 20 / 22   & 90.90\%  \\
+Conditions        & 5 / 7     & 71.42\%  \\
+Expressions       & 2 / 2     & 100\%    \\
+FSM states        & 3 / 3     & 100\%    \\
+FSM transitions   & 5 / 5     & 100\%    \\
+Toggles           & 271 / 271 & 100\%    \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Every uncovered code item is \textbf{structurally unreachable}, so the reachable
+code coverage is 100\%:
+
+\begin{itemize}
+  \item \texttt{rtl/gcd.sv:118} --- \texttt{default: state <= IDLE;} (1 statement,
+        1 branch). The FSM is an exhaustively enumerated 3-state type, so the
+        \texttt{default} arm can never execute. It is defensive coding only.
+  \item Subtractive-step comparison false-legs (lines 51/53; remaining branch and
+        condition misses, e.g.\ \texttt{(b\_reg > a\_reg)} false). In the
+        \texttt{RUN} state the operands are always unequal, so the symmetric
+        ``false'' leg of the comparison cascade is unreachable.
+  \item Line 75 \texttt{(in\_valid \&\& in\_ready)}, \texttt{in\_ready} false term.
+        This statement executes only in \texttt{IDLE}, where
+        \texttt{in\_ready} $\equiv 1$ by definition, so the term cannot be 0.
+\end{itemize}
+
+\section{Closure}
+
+\begin{itemize}
+  \item \textbf{Functional coverage:} 100\% of all covergroup bins (merged).
+  \item \textbf{Code coverage:} 100\% of reachable statements, branches,
+        conditions, expressions, FSM states/transitions, and toggles; the only
+        misses are the unreachable items listed above.
+  \item \textbf{Assertions:} 14 / 14 exercised, 0 failures across all runs.
+  \item \textbf{Tests:} smoke, directed, and random all pass with zero scoreboard
+        value or latency mismatches.
+\end{itemize}
+
+The verification goals defined in the plan are met.
+
+\end{document}
