@@ -1,0 +1,91 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
+\usepackage[table]{xcolor}
+
+\renewcommand{\arraystretch}{1.25}
+
+\title{Bug Report Ticket \\ \large GCD Module (UPC MIRI -- PV)}
+\author{Dan Hagen}
+\date{\today}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\textbf{Ticket} & GCD-001 \\
+\textbf{Component} & \texttt{rtl/gcd.sv} --- FSM convergence (RUN state) \\
+\textbf{Severity} & Major (functional timing) \\
+\textbf{Status} & Open \\
+\textbf{Found by} & UVM regression (smoke, directed, random) \\
+\end{tabular}
+\end{table}
+
+\section*{Summary}
+Every general-case GCD computation produces the \emph{correct result} but asserts
+\texttt{out\_valid} \textbf{one clock cycle too late}, violating the latency
+specification. Early-exit operands ($a=0$, $b=0$, $a=b$) are unaffected.
+
+\section*{Steps to Reproduce}
+\texttt{make regress} (seeds 1 / 7 / 42). Failures appear in all three tests.
+
+\section*{Observed vs.\ Expected}
+848 of 1025 scoreboard checks fail. The result value always matches the reference;
+the measured latency is always \texttt{expected + 1} for any operand pair that
+enters the \texttt{RUN} state. Representative cases:
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+Operands & \texttt{gcd\_out} (obs/exp) & Latency obs & Latency exp & Result \\
+\midrule
+$\gcd(6,9)$       & 3 / 3 & 4      & 3      & value OK, +1 cycle \\
+$\gcd(3,5)$       & 1 / 1 & 5      & 4      & value OK, +1 cycle \\
+$\gcd(65535,1)$   & 1 / 1 & 65536  & 65535  & value OK, +1 cycle \\
+$\gcd(0,5)$       & 5 / 5 & 1      & 1      & \textbf{pass} (early-exit) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section*{Detection}
+\begin{itemize}\itemsep2pt
+  \item \textbf{Scoreboard latency check (RQ-L02)} --- reports
+        \texttt{delay = N+1, Expected delay = N} on every general-case transaction.
+  \item \textbf{Assertion \texttt{A\_RUN\_CONVERGE}} (\texttt{tb\_gcd.sv:1324},
+        \texttt{(a\_next==b\_next \&\& state==RUN) |=> state==DONE}) --- fired
+        848 times.
+\end{itemize}
+Value-correctness, handshake, and reset checks all pass; the defect is purely
+temporal, so a value-only testbench would not have caught it.
+
+\section*{Root Cause}
+The RUN$\rightarrow$DONE convergence test compares the \emph{registered} operands
+instead of the \emph{combinational next-cycle} operands:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\textbf{Buggy} & \texttt{if (a\_reg == b\_reg)} \\
+\textbf{Correct} & \texttt{if (a\_next == b\_next)} \\
+\end{tabular}
+\end{table}
+
+\noindent Spec \S2.4 requires the termination check to be evaluated on the
+next-cycle values; comparing the registered values detects convergence one cycle
+late, so the FSM stays in \texttt{RUN} for one extra cycle before entering
+\texttt{DONE}.
+
+\section*{Proposed Fix}
+\texttt{rtl/gcd.sv}, RUN-state convergence test: change
+\texttt{if (a\_reg == b\_reg)} back to \texttt{if (a\_next == b\_next)}. One-token
+change; restores \S2.5 latency ($1{+}N$ cycles) with no datapath impact.
+
+\end{document}
