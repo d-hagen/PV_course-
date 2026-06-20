@@ -705,6 +705,8 @@ package gcd_pkg;
         task run_reset();
             gcd_in_tx in_item;
 
+            reset_pulse(2);   // entry: force IDLE
+
             `uvm_do_on_with(in_item, p_sequencer.in_sqr,
                             { a_in == 100; b_in == 1; in_delay == 0; })
             reset_pulse(2);   // during_run
