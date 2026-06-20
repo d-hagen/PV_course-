@@ -70,17 +70,24 @@ summary:
 merge:
 	vcover merge merged.ucdb cov_*.ucdb
 
-cov_report: merge
-	@{ \
-	  echo "######## PER-TEST SUMMARY (coverage over time) ########"; \
-	  for u in cov_smoke cov_directed cov_random; do \
-	    echo "==== $$u ===="; \
-	    vcover report $$u.ucdb; \
-	  done; \
-	  echo "######## MERGED (regress) -- DETAILED: code + functional ########"; \
-	  vcover report -details merged.ucdb; \
-	} > cov_report.txt 2>&1
-	@echo "wrote cov_report.txt"
+# report one test's coverage (code + functional) to a file
+#   make cov_report TEST=directed                -> cov_directed.txt
+#   make cov_report TEST=regress                 -> cov_regress.txt (merged)
+#   make cov_report TEST=random REPORT=foo.txt   -> custom file name
+#   TEST = smoke | directed | random | regress
+UCDB   = $(if $(filter regress,$(TEST)),merged.ucdb,cov_$(TEST).ucdb)
+REPORT ?= cov_$(TEST).txt
+
+cov_report:
+	vcover report -details $(UCDB) > $(REPORT) 2>&1
+	@echo "wrote $(REPORT)"
+
+# one separate report file per test
+cov_reports:
+	$(MAKE) cov_report TEST=smoke    REPORT=cov_smoke.txt
+	$(MAKE) cov_report TEST=directed REPORT=cov_directed.txt
+	$(MAKE) cov_report TEST=random   REPORT=cov_random.txt
+	$(MAKE) cov_report TEST=regress  REPORT=cov_regress.txt
 
 cov_html: merge
 	vcover report -html -output cov_html merged.ucdb
@@ -90,6 +97,6 @@ cov_gui: merge
 	vsim -viewcov merged.ucdb
 
 clean:
-	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html run_*.log cov_report.txt modelsim.ini
+	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html run_*.log cov_*.txt modelsim.ini
 
-.PHONY: compile run gui run_cov regress summary merge cov_report cov_html cov_gui clean
+.PHONY: compile run gui run_cov regress summary merge cov_report cov_reports cov_html cov_gui clean
