@@ -1,0 +1,345 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage[table]{xcolor}
+
+\renewcommand{\arraystretch}{1.45}
+\rowcolors{2}{gray!8}{white}
+
+\title{Verification Plan \\ \large GCD Module (UPC MIRI -- PV)}
+\author{Dan Hagen}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Design Description}
+
+The DUT is a parameterized $N$-bit Greatest Common Divisor (GCD) module that computes
+$\gcd(A,B)$ for two unsigned operands $A$ and $B$ using the subtractive Euclidean
+algorithm. Operands and result are \texttt{WIDTH} bits wide. The module exchanges data
+through two independent ready/valid handshake channels: an input channel
+(\texttt{in\_valid}/\texttt{in\_ready}) that accepts operand pairs and an output channel
+(\texttt{out\_valid}/\texttt{out\_ready}) that delivers the result. Internally it follows
+a three-state FSM (\texttt{IDLE} $\rightarrow$ \texttt{RUN} $\rightarrow$ \texttt{DONE}
+$\rightarrow$ \texttt{IDLE}) with synchronous active-low reset. Latency is one cycle for
+early-exit operands ($A=0$, $B=0$, or $A=B$) and $1+N$ cycles for the general case, where
+$N \geq 1$ is the number of subtractive iterations.
+
+
+\subsection*{Parameters}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcp{8cm}}
+\toprule
+Parameter & Default & Description \\
+\midrule
+\texttt{WIDTH} & 16 & Width of \texttt{a\_in}, \texttt{b\_in}, and \texttt{gcd\_out}. Must be $\geq 1$. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Top-Level Signal Interface}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{llcp{7.5cm}}
+\toprule
+Signal & Direction & Width & Description \\
+\midrule
+\texttt{clk}       & Input  & 1     & Clock signal \\
+\texttt{rst\_n}    & Input  & 1     & Active-low synchronous reset \\
+\texttt{in\_valid} & Input  & 1     & Producer asserts that \texttt{a\_in} and \texttt{b\_in} are valid \\
+\texttt{in\_ready} & Output & 1     & Module is ready to accept an input transaction \\
+\texttt{a\_in}     & Input  & WIDTH & First operand \\
+\texttt{b\_in}     & Input  & WIDTH & Second operand \\
+\texttt{out\_valid}& Output & 1     & Module asserts that \texttt{gcd\_out} is a valid result \\
+\texttt{out\_ready}& Input  & 1     & Consumer is ready to accept the output transaction \\
+\texttt{gcd\_out}  & Output & WIDTH & GCD result \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A transaction is captured on the rising edge where \texttt{in\_valid} and \texttt{in\_ready}
+are both high; \texttt{a\_in}/\texttt{b\_in} must remain stable while \texttt{in\_valid = 1}
+and \texttt{in\_ready = 0}. The output transaction completes on the rising edge where
+\texttt{out\_valid} and \texttt{out\_ready} are both high; \texttt{gcd\_out} must be driven
+from a dedicated result register and remain stable for the entire \texttt{out\_valid} period.
+
+\subsection*{FSM States}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lccp{7.5cm}}
+\toprule
+State & \texttt{in\_ready} & \texttt{out\_valid} & Description \\
+\midrule
+\texttt{IDLE} & 1 & 0 & Waiting for input. Ready to accept a new transaction. \\
+\texttt{RUN}  & 0 & 0 & Iterative subtraction in progress. No new input accepted. \\
+\texttt{DONE} & 0 & 1 & Result ready. Waiting for the consumer to accept it. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Reset Behavior}
+
+Reset is active-low and synchronous: \texttt{rst\_n} is sampled on the rising edge of
+\texttt{clk} and must not appear in the \texttt{always\_ff} sensitivity list. While
+\texttt{rst\_n = 0}, on every rising edge the FSM is forced to \texttt{IDLE}, all internal
+registers are cleared, and the module presents \texttt{in\_ready = 1},
+\texttt{out\_valid = 0}, \texttt{gcd\_out = 0}. On the first rising edge after
+\texttt{rst\_n} is released the module is in \texttt{IDLE} and ready to accept input
+immediately.
+
+\section{Traceability Matrix}
+
+Each requirement extracted from the specification is traced below to the design feature
+it characterises, the test that exercises it, and
+the assertion that guards it at simulation time.
+
+{\small
+\begin{longtable}{@{}p{1.5cm} p{6.5cm} p{3.5cm} p{1.7cm} p{1.7cm}@{}}
+\toprule
+\textbf{Req ID} & \textbf{Requirement} & \textbf{Feature} & \textbf{Test ID} & \textbf{Assertion ID} \\
+\midrule
+\endfirsthead
+
+\toprule
+\textbf{Req ID} & \textbf{Requirement} & \textbf{Feature} & \textbf{Test ID} & \textbf{Assertion ID} \\
+\midrule
+\endhead
+
+\bottomrule
+\endfoot
+
+RQ-M01 & Zero operand returns the other operand & Zero-operand handling & D1 & \\
+
+RQ-M02 & Equal operands return that value & Equal-operand handling & D2 & \\
+
+RQ-M03 & GCD result is mathematically correct for general operand pairs & General computation & D3, D4, D5 & \\
+
+RQ-F01 & FSM stays within legal state set & Legal-state invariant & D1--D7 & \\
+
+RQ-F02 & Early-exit takes IDLE to DONE in one cycle & Early-exit transition & D1, D2 & \\
+
+RQ-F03 & Non-trivial input drives IDLE to RUN & General-path transition & D3, D4, D5 & \\
+
+RQ-F04 & Output handshake returns to IDLE & Result acceptance & D1--D7 & \\
+
+RQ-H01 & \texttt{in\_ready} high only in IDLE & Input handshake gating & D1--D7 & \\
+
+RQ-H02 & \texttt{out\_valid} high for entire DONE & Output handshake gating & D1--D7 & \\
+
+RQ-H03 & \texttt{gcd\_out} stable under back-pressure & Output stability & D7 & \\
+
+RQ-H04 & \texttt{gcd\_out} sourced from dedicated result register & Dedicated output register & D7 & \\
+
+RQ-R01 & Reset clears all registers and outputs synchronously & Reset values & & \\
+
+RQ-R02 & Module accepts input on first edge after reset release & Post-reset readiness & & \\
+
+RQ-L01 & Early-exit latency is 1 cycle & Early-exit latency & D1, D2 & \\
+
+RQ-L02 & General latency is $1+N$ cycles & General-case latency & D3, D4 & \\
+
+RQ-T01 & Back-to-back transactions without idle gap & Sequential throughput & D6 & \\
+
+\end{longtable}
+
+\vspace{-0.5em}
+{\scriptsize \itshape \color{gray!70!black}
+Req ID legend: M = Math \quad F = FSM \quad H = Handshake \quad R = Reset \quad L = Latency \quad T = Throughput \\
+Test ID legend (all are \texttt{gcd\_test\_directed} runs):
+D1 = zero \quad D2 = equal \quad D3 = max \quad D4 = coprime \quad D5 = pow2 \quad D6 = back\_to\_back \quad D7 = any scenario with \texttt{+OUT\_BP} (back-pressure)
+\par}
+}
+
+\section{Verification Strategy}
+% Stimulus approach, checking approach, methodology choices.
+
+\subsection{Approach}
+
+The test stratagy follows the standart stimulus-response model. Stimulus gets driven into the DUT, the DUT responses are observed and compared against the specifications excpected behaior via a reference model. The DUT is treated as a black box by the scoreboard, meaning only signals from the Top-level signal interface (see section 1) are observed. Assertions do have acesses to the internal state of the machine to allow for testing of behavior of the  internal state of the FSM to observe if it complies with the mandated specifications. 
+\newline
+Every requirement listed in the tracability Matrix in section 2 is hit by at least one test, observed by at least one assertion or scoreboard check, and closed against a coverage target in Section 5.
+
+ \subsection{Stimulus Generation}
+
+Stimulus genration is split in 3 groups:
+
+\begin{description}
+    \item[Smoke test:] The smoke test is the bring-up test. It drives one or two valid transactions through the DUT with no back-pressure and no reset events. Its only job is to confirm the TB infrastructure works end-to-end before the deeper tests get a chance to expose DUT bugs.
+
+    \item[Directed Test:] For every feature row in the traceability matrix that is exercisable by stimulus, the directed test runs a dedicated sub-sequence targeting that feature. Each feature is hit deterministically and repeatably, with at least three distinct stimulus variants  to avoid passing by coincidence on a single magic number. The directed test accepts a \texttt{+SCENARIO=<name>} plusarg (default \texttt{all}) which selects a single sub-sequence to run on its own --- useful for isolating one feature without running the whole bucket.
+
+    \item[Constrained random:] A single constrained random sequence drives the DUT to test for edge cses. The constrains are tuned to hit coverage goals defined in section 5.
+\end{description}
+
+
+ \subsection{Result Checking}
+
+Three checking mechanisms run simultaneously:
+
+\begin{enumerate}
+    \item \textbf{Reference model.} The scoreboard pairs every captured \texttt{(a, b)} with the DUT's emitted \texttt{gcd\_out} in FIFO order and compares the value against \texttt{gcd\_ref(a, b)}. A latency check fires on the first cycle that \texttt{out\_valid} is asserted, comparing the measured latency against the spec-mandated latency. On reset, the scoreboard drains its queues and cancels any in-flight latency watch.
+
+    \item \textbf{Assertions.} SystemVerilog assertions check the spec's protocol and timing rules every clock cycle. Every assertion is silenced while reset is active , matching the synchronous-reset behaviour. Assertions mostly check external pins with a small number of exceptions to observe if the internal state machine of the DUT follows the specified behavior.
+
+    \item \textbf{End-of-test drain check.} At simulation end the scoreboard's \texttt{check\_phase} verifies both transaction queues are empty. A leftover transaction means the DUT swallowed an input without producing an output (or vice versa).
+\end{enumerate}
+
+\subsection{Reusability and Runtime Control}
+
+The TB is built to be reusable and configurable without recompiling. Per-test behaviour is controlled at run time via plusargs and \texttt{uvm\_config\_db}:
+
+\begin{itemize}
+    \item \texttt{+UVM\_TESTNAME=<class>} picks the test.
+    \item \texttt{-sv\_seed <N>} seeds the randomisation engine.
+    \item \texttt{+NUM\_TX=<N>} sets the constrained-random transaction count.
+    \item \texttt{+SCENARIO=<name>} selects a single directed scenario (operand class, back-to-back, back-pressure, or reset).
+    \item \texttt{+UVM\_VERBOSITY=<level>} tunes logging.
+    \item \texttt{+UVM\_TIMEOUT=<time>,YES} bounds runaway sims.
+\end{itemize}
+
+\texttt{WIDTH} is set at compile time via \texttt{+define+TB\_WIDTH=N} (see Section 1).
+
+The same compiled image then runs over the cross-product of (test $\times$ seed $\times$ back-pressure $\times$ tx count $\times$ scenario).
+
+
+\section{Testbench Architecture}
+
+The testbench is a single-file UVM environment. The DUT exposes two independent
+ready/valid channels plus a reset, so the testbench mirrors the real chip with
+\textbf{three active agents} --- one per interface --- coordinated by a virtual
+sequencer. Figure~\ref{fig:tb-arch} shows the structure.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{tb_architecture.png}
+  {\includegraphics[width=\textwidth]{tb_architecture.png}}
+  {\fbox{\parbox{0.8\textwidth}{\centering\vspace{2cm} \textit{[testbench architecture diagram --- tb\_architecture.png]} \vspace{2cm}}}}
+\caption{Testbench architecture. Solid arrows: pin-level signals. Dashed: TLM
+analysis ports. Dotted: \texttt{bind}.}
+\label{fig:tb-arch}
+\end{figure}
+
+\subsection*{Interface}
+A single \texttt{gcd\_if} carries all DUT signals. \texttt{rst\_n} is
+interface-owned (driven by the reset agent, not the top module). Each user gets
+its own clocking block and modport: \texttt{cb\_in}/\texttt{mp\_in} (drives
+\texttt{in\_valid}/\texttt{a\_in}/\texttt{b\_in}), \texttt{cb\_out}/\texttt{mp\_out}
+(drives \texttt{out\_ready}), \texttt{cb\_mon}/\texttt{mp\_mon} (samples
+everything, drives nothing), and \texttt{cb\_rst}/\texttt{mp\_rst} (drives
+\texttt{rst\_n}). All driving and sampling goes through the clocking blocks,
+eliminating TB/DUT races.
+
+\subsection*{Sequence items}
+\begin{itemize}
+    \item \texttt{gcd\_in\_tx} --- input stimulus: \texttt{a\_in}, \texttt{b\_in}, \texttt{in\_delay}.
+    \item \texttt{gcd\_out\_tx} --- output back-pressure stimulus: \texttt{ready}, \texttt{hold\_cycles} (a segment of the \texttt{out\_ready} waveform, independent of \texttt{out\_valid}).
+    \item \texttt{gcd\_result\_tx} --- what the output monitor publishes: the captured \texttt{gcd\_out}.
+    \item \texttt{gcd\_rst\_tx} --- reset stimulus: \texttt{assert\_cycles}.
+\end{itemize}
+Handshake bits (\texttt{in\_valid}, \texttt{out\_ready} level) are \emph{not}
+transaction fields --- the drivers own the protocol mechanics.
+
+\subsection*{Agents}
+\begin{description}
+    \item[Input agent (active):] sequencer + driver + monitor. The driver runs the \texttt{in\_valid}/\texttt{in\_ready} handshake; the monitor publishes a \texttt{gcd\_in\_tx} on each captured input handshake.
+    \item[Output agent (active):] drives \texttt{out\_ready} as a stream of waveform segments; the monitor emits two analysis ports --- \texttt{ap\_avail} at the \texttt{out\_valid} rising edge (result available, used for value + latency) and \texttt{ap\_done} at the output handshake (result consumed).
+    \item[Reset agent (active):] drives \texttt{rst\_n} (power-on reset plus any mid-flight pulses); the reset monitor publishes a pulse on each \texttt{rst\_n} falling edge.
+\end{description}
+
+\subsection*{Virtual sequencer and sequences}
+The virtual sequencer holds handles to the three channel sequencers. Virtual
+sequences coordinate the channels by starting sub-sequences on those handles:
+the directed virtual sequence pairs one directed input scenario with the matching
+output behaviour (and, for the reset scenario, a mid-flight reset pulse); the
+random virtual sequence forks a random input stream, a random back-pressure
+stream, and a mostly-idle random reset stream.
+
+\subsection*{Scoreboard}
+The scoreboard receives the input, result-available, and reset streams. On each
+input it computes the golden value via \texttt{gcd\_ref(a,b)} (modulo Euclid --- an
+algorithm independent of the DUT's subtractive implementation) and the expected
+latency via a subtractive step count that mirrors the RTL. On the result-available
+event it checks the observed \texttt{gcd\_out} against the golden value and the
+measured latency (from \texttt{\$time}) against the expected latency. On reset it
+wipes the in-flight state. A pending flag detects unpaired inputs/outputs; a
+\texttt{report\_phase} prints the pass/fail tally.
+
+\subsection*{Coverage}
+A subscriber samples a covergroup every clock (handshake states, operand/result
+value classes, the operand cross, equal-operand) plus a reset covergroup sampled
+on each reset assertion. Details in Section~5.
+
+\subsection*{Assertions}
+A separate \texttt{gcd\_assertions} module is \texttt{bind}-ed into the DUT, giving
+it white-box access to \texttt{state}, \texttt{result\_reg}, and the next-cycle
+datapath values without modifying the synthesizable RTL.
+
+\subsection*{Top}
+\texttt{top} generates the clock, instantiates the interface (clock only) and the
+DUT, publishes the per-modport virtual interfaces via \texttt{uvm\_config\_db},
+binds the assertions, and calls \texttt{run\_test()}.
+
+\section{Coverage Goals}
+
+Closure uses both functional and code coverage.
+
+\subsection*{Functional coverage}
+Sampled by the coverage subscriber. Goal: every bin hit at least once.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}p{4.2cm} p{9.5cm}@{}}
+\toprule
+\textbf{Coverpoint / cross} & \textbf{Bins / intent} \\
+\midrule
+handshake state (in) & cross \texttt{in\_valid}$\times$\texttt{in\_ready}: handshake complete, input-not-valid, gcd-not-ready, idle \\
+handshake state (out) & cross \texttt{out\_ready}$\times$\texttt{out\_valid}: handshake complete, result-waiting, taker-waiting, idle \\
+\texttt{cp\_a} / \texttt{cp\_b} & operand value class: zero, low, mid, high \\
+\texttt{a}$\times$\texttt{b} cross & both-low, both-high, a-low/b-high, a-high/b-low, a-zero, b-zero, both-zero \\
+\texttt{a\_eq\_b} & equal vs not-equal operands, sampled only at the input handshake (RQ-M02) \\
+\texttt{gcd\_out} class & result value class: low, mid, high \\
+reset state & reset asserted during IDLE / RUN / DONE (RQ-R01/R02; RUN \& DONE prove mid-flight reset) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Code coverage}
+Collected with \texttt{vlog -cover bcefsx} (branch, condition, expression, FSM,
+statement, toggle) and merged across tests with \texttt{vcover merge}. Goal:
+$\geq 95\%$ statement/branch/FSM, with any gap explained (e.g. unreachable
+\texttt{default} states).
+
+\subsection*{Per-test progression}
+A separate coverage database (\texttt{.ucdb}) is saved per test (smoke, directed,
+random) so coverage growth over the test sequence is visible, then merged for the
+final closure figure.
+
+\section{Closure Criteria}
+
+Verification is considered closed when all of the following hold:
+
+\begin{enumerate}
+    \item \textbf{All tests pass} --- smoke, directed (all scenarios), and random complete with zero \texttt{UVM\_ERROR} and zero \texttt{UVM\_FATAL}.
+    \item \textbf{Scoreboard clean} --- the \texttt{report\_phase} reports zero failed value or latency checks.
+    \item \textbf{No assertion failures} --- every bound SVA property holds across all runs.
+    \item \textbf{Functional coverage} --- 100\% of the functional bins in Section~5 are hit (including the mid-flight reset and equal-operand bins, which need the directed reset / random stimulus to close).
+    \item \textbf{Code coverage} --- merged code coverage meets the Section~5 target, with any residual gap justified.
+    \item \textbf{Injected-bug check} --- the deliberately injected RTL bug is caught by at least one test or assertion, demonstrating the testbench's detection ability.
+\end{enumerate}
+
+\end{document}
