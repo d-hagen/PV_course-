@@ -605,7 +605,7 @@ package gcd_pkg;
 
         gcd_out_sequencer sqr;
         gcd_out_driver    drv;
-        gcd_out_monitor   mon;
+        gcd_result_monitor mon;
 
         function new(string name, uvm_component parent);
             super.new(name, parent);
@@ -613,7 +613,7 @@ package gcd_pkg;
 
         function void build_phase(uvm_phase phase);
             super.build_phase(phase);
-            mon = gcd_out_monitor::type_id::create("mon", this);
+            mon = gcd_result_monitor::type_id::create("mon", this);
             sqr = gcd_out_sequencer::type_id::create("sqr", this);
             drv = gcd_out_driver   ::type_id::create("drv", this);
         endfunction
@@ -1307,7 +1307,7 @@ module gcd_assertions #(parameter int unsigned WIDTH = `TB_WIDTH) (
     assert property (
       @(posedge clk)
       disable iff (!rst_n)
-      (!in_ready && in_valid)) |=> (a_in == $past(a_in)) && (b_in == $past(b_in))
+      (!in_ready && in_valid) |=> (a_in == $past(a_in)) && (b_in == $past(b_in))
     ) else $error("a_in/ b_in not stable when stalled (input error not DUT)");
 
     assert property (
