@@ -61,7 +61,10 @@ cov_html: merge
 	vcover report -html -output cov_html merged.ucdb
 	xdg-open cov_html/index.html
 
+cov_gui: merge
+	vsim -viewcov merged.ucdb
+
 clean:
 	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html modelsim.ini
 
-.PHONY: compile compile_cov run gui run_cov regress merge cov_report cov_html clean
+.PHONY: compile compile_cov run gui run_cov regress merge cov_report cov_html cov_gui clean
