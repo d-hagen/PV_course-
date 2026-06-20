@@ -98,7 +98,11 @@ module gcd #(
                     b_reg <= b_next;
 
                     // Check convergence on next-cycle values so the
+`ifdef INJECT_BUG
+                    if (a_reg == b_reg) begin
+`else
                     if (a_next == b_next) begin
+`endif
                         result_reg <= a_next;
                         state      <= DONE;
                     end

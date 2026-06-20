@@ -18,6 +18,11 @@ VFLAGS = -sv -mfcu +acc
 #     (s=stmt, b=branch, c=cond, e=expr, f=fsm, t=toggle)
 COV    = +cover=bcefst
 
+# inject the convergence bug into the DUT:  make run TEST=directed BUG=1
+ifeq ($(BUG),1)
+VFLAGS += +define+INJECT_BUG
+endif
+
 PLUS = +UVM_TESTNAME=gcd_test_$(TEST) +UVM_VERBOSITY=$(VERB) +NUM_TX=$(NUM_TX)
 ifneq ($(SCENARIO),)
 PLUS += +SCENARIO=$(SCENARIO)
@@ -32,13 +37,13 @@ compile:
 
 # ---- run ----------------------------------------------------------------
 run: compile
-	vsim -c $(TOP) -sv_seed $(SEED) $(PLUS) -do "run -all; quit -f"
+	vsim -c $(TOP) -l run_$(TEST).log -sv_seed $(SEED) $(PLUS) -do "run -all; quit -f"
 
 gui: compile
 	vsim $(TOP) -sv_seed $(SEED) $(PLUS) -do "run -all"
 
 run_cov: compile
-	vsim -c -coverage $(TOP) -sv_seed $(SEED) $(PLUS) \
+	vsim -c -coverage $(TOP) -l run_$(TEST).log -sv_seed $(SEED) $(PLUS) \
 	     -do "coverage save -onexit cov_$(TEST).ucdb; run -all; quit -f"
 
 # ---- coverage regression over the three tests ---------------------------
