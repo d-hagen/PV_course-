@@ -26,11 +26,9 @@ endif
 # ---- build --------------------------------------------------------------
 compile:
 	vlib work
-	vlog $(VFLAGS) $(RTL) $(TB)
+		vlog $(VFLAGS) $(COV) $(RTL) $(TB)
 
-compile_cov:
-	vlib work
-	vlog $(VFLAGS) $(COV) $(RTL) $(TB)
+
 
 # ---- run ----------------------------------------------------------------
 run: compile
@@ -39,12 +37,12 @@ run: compile
 gui: compile
 	vsim $(TOP) -sv_seed $(SEED) $(PLUS) -do "run -all"
 
-run_cov: compile_cov
+run_cov: compile
 	vsim -c -coverage $(TOP) -sv_seed $(SEED) $(PLUS) \
 	     -do "coverage save -onexit cov_$(TEST).ucdb; run -all; quit -f"
 
 # ---- coverage regression over the three tests ---------------------------
-regress: compile_cov
+regress: compile
 	vsim -c -coverage $(TOP) -l run_smoke.log    -sv_seed 1  +UVM_TESTNAME=gcd_test_smoke    -do "coverage save -onexit cov_smoke.ucdb; run -all; quit -f"
 	vsim -c -coverage $(TOP) -l run_directed.log -sv_seed 7  +UVM_TESTNAME=gcd_test_directed -do "coverage save -onexit cov_directed.ucdb; run -all; quit -f"
 	vsim -c -coverage $(TOP) -l run_random.log   -sv_seed 42 +UVM_TESTNAME=gcd_test_random +NUM_TX=1000 -do "coverage save -onexit cov_random.ucdb; run -all; quit -f"
@@ -73,7 +71,16 @@ merge:
 	vcover merge merged.ucdb cov_*.ucdb
 
 cov_report: merge
-	vcover report -details merged.ucdb
+	@{ \
+	  echo "######## PER-TEST SUMMARY (coverage over time) ########"; \
+	  for u in cov_smoke cov_directed cov_random; do \
+	    echo "==== $$u ===="; \
+	    vcover report $$u.ucdb; \
+	  done; \
+	  echo "######## MERGED (regress) -- DETAILED: code + functional ########"; \
+	  vcover report -details merged.ucdb; \
+	} > cov_report.txt 2>&1
+	@echo "wrote cov_report.txt"
 
 cov_html: merge
 	vcover report -html -output cov_html merged.ucdb
@@ -83,6 +90,6 @@ cov_gui: merge
 	vsim -viewcov merged.ucdb
 
 clean:
-	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html run_*.log modelsim.ini
+	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html run_*.log cov_report.txt modelsim.ini
 
-.PHONY: compile compile_cov run gui run_cov regress summary merge cov_report cov_html cov_gui clean
+.PHONY: compile run gui run_cov regress summary merge cov_report cov_html cov_gui clean
