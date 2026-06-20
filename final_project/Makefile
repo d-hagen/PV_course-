@@ -18,11 +18,6 @@ VFLAGS = -sv -mfcu +acc
 #     (s=stmt, b=branch, c=cond, e=expr, f=fsm, t=toggle)
 COV    = +cover=bcefst
 
-# inject the convergence bug into the DUT:  make run TEST=directed BUG=1
-ifeq ($(BUG),1)
-VFLAGS += +define+INJECT_BUG
-endif
-
 PLUS = +UVM_TESTNAME=gcd_test_$(TEST) +UVM_VERBOSITY=$(VERB) +NUM_TX=$(NUM_TX)
 ifneq ($(SCENARIO),)
 PLUS += +SCENARIO=$(SCENARIO)
@@ -52,7 +47,10 @@ regress: compile
 	vsim -c -coverage $(TOP) -l run_directed.log -sv_seed 7  +UVM_TESTNAME=gcd_test_directed -do "coverage save -onexit cov_directed.ucdb; run -all; quit -f"
 	vsim -c -coverage $(TOP) -l run_random.log   -sv_seed 42 +UVM_TESTNAME=gcd_test_random +NUM_TX=1000 -do "coverage save -onexit cov_random.ucdb; run -all; quit -f"
 	$(MAKE) merge
-	$(MAKE) summary
+	@{ echo "######## SMOKE ########";    cat run_smoke.log;    \
+	   echo "######## DIRECTED ########"; cat run_directed.log; \
+	   echo "######## RANDOM ########";   cat run_random.log;   } > regress.log
+	$(MAKE) summary | tee -a regress.log
 
 # ---- regression summary: per-test reports + grand total -----------------
 summary:
@@ -114,6 +112,6 @@ cov_gui: merge
 	vsim -viewcov merged.ucdb
 
 clean:
-	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html run_*.log cov_*.txt modelsim.ini
+	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html run_*.log regress.log cov_*.txt modelsim.ini
 
 .PHONY: compile run gui run_cov regress summary merge cov_report cov_reports cov_html cov_gui do_all clean
