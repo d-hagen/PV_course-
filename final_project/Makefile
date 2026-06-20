@@ -89,6 +89,18 @@ cov_reports:
 	$(MAKE) cov_report TEST=random   REPORT=cov_random.txt
 	$(MAKE) cov_report TEST=regress  REPORT=cov_regress.txt
 
+# full clean regression: fresh build, each test run + reported, then merged
+do_all:
+	$(MAKE) clean
+	$(MAKE) run_cov    TEST=smoke
+	$(MAKE) cov_report TEST=smoke
+	$(MAKE) run_cov    TEST=directed
+	$(MAKE) cov_report TEST=directed
+	$(MAKE) run_cov    TEST=random NUM_TX=1000
+	$(MAKE) cov_report TEST=random
+	$(MAKE) merge
+	$(MAKE) cov_report TEST=regress
+
 cov_html: merge
 	vcover report -html -output cov_html merged.ucdb
 	xdg-open cov_html/index.html
@@ -99,4 +111,4 @@ cov_gui: merge
 clean:
 	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html run_*.log cov_*.txt modelsim.ini
 
-.PHONY: compile run gui run_cov regress summary merge cov_report cov_reports cov_html cov_gui clean
+.PHONY: compile run gui run_cov regress summary merge cov_report cov_reports cov_html cov_gui do_all clean
