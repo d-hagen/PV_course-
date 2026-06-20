@@ -247,7 +247,17 @@ package gcd_pkg;
             forever `uvm_do_with(req, { ready == 1; hold_cycles == 10; })
         endtask
     endclass
-    
+
+    class gcd_out_seq_never_ready extends gcd_out_seq_base;
+        `uvm_object_utils(gcd_out_seq_never_ready)
+        function new(string name = "gcd_out_seq_never_ready");
+            super.new(name);
+        endfunction
+        task body();
+            forever `uvm_do_with(req, { ready == 0; hold_cycles == 10; })
+        endtask
+    endclass
+
     class gcd_out_seq_backpressure extends gcd_out_seq_base;
         `uvm_object_utils(gcd_out_seq_backpressure)
         function new(string name = "gcd_out_seq_backpressure");
@@ -659,10 +669,10 @@ package gcd_pkg;
         task body();
             gcd_out_seq_base out_seq;
 
-            // output behaviour is derived from the scenario: only the
-            // BACKPRESSURE scenario applies back-pressure; all others stay ready.
             if (scenario == BACKPRESSURE)
                 out_seq = gcd_out_seq_backpressure::type_id::create("out_seq");
+            else if (scenario == RESET)
+                out_seq = gcd_out_seq_never_ready::type_id::create("out_seq");
             else
                 out_seq = gcd_out_seq_always_ready::type_id::create("out_seq");
 
@@ -684,23 +694,27 @@ package gcd_pkg;
             in_seq.start(p_sequencer.in_sqr);
         endtask
 
-        // reset scenario (RQ-R01/R02): drive a tx that enters RUN, assert reset
-        // mid-computation, then drive a fresh tx that must handshake right after
-        // release. The aborted tx must produce no result (scoreboard drain).
-        task run_reset();
-            gcd_in_tx         in_item;
+        task reset_pulse(int unsigned n);
             gcd_rst_seq_pulse rst_seq;
+            rst_seq = gcd_rst_seq_pulse::type_id::create("rst_seq");
+            rst_seq.cycles = n;
+            rst_seq.start(p_sequencer.rst_sqr);
+        endtask
 
-            // 1. long-running transaction -> DUT enters RUN and stays there
+        // RQ-R01/R02
+        task run_reset();
+            gcd_in_tx in_item;
+
             `uvm_do_on_with(in_item, p_sequencer.in_sqr,
                             { a_in == 100; b_in == 1; in_delay == 0; })
+            reset_pulse(2);   // during_run
 
-            // 2. assert reset while the DUT is mid-RUN (input driver is idle now)
-            rst_seq = gcd_rst_seq_pulse::type_id::create("rst_seq");
-            rst_seq.cycles = 2;
-            rst_seq.start(p_sequencer.rst_sqr);
+            reset_pulse(2);   // during_idle
 
-            // 3. fresh transaction on the first edge after release (RQ-R02)
+            `uvm_do_on_with(in_item, p_sequencer.in_sqr,
+                            { a_in == 5; b_in == 0; in_delay == 0; })
+            reset_pulse(2);   // during_done
+
             `uvm_do_on_with(in_item, p_sequencer.in_sqr,
                             { a_in == 6; b_in == 9; in_delay == 0; })
         endtask
@@ -1267,12 +1281,13 @@ module gcd_assertions #(parameter int unsigned WIDTH = `TB_WIDTH) (
     A_EARLY_EXIT : assert property (
       @(posedge clk)
       disable iff (!rst_n)
-      (a_in==0 || b_in == 0 || a_in==b_in ) && (in_valid && in_ready) |-> (state == DONE) && out_valid
+      (a_in==0 || b_in == 0 || a_in==b_in ) && (in_valid && in_ready) |=> (state == DONE) && out_valid
     ) else $error("early exit transition not respected");
 
      A_GENERAL_RUN : assert property (
       @(posedge clk)
       disable iff (!rst_n)
+      
       (a_in!==0 && b_in !== 0 && a_in!==b_in ) && (in_valid && in_ready) |=> (state == RUN)
     ) else $error("DUT not transitioning to RUN state on valid input");
 
