@@ -1,12 +1,11 @@
 # =============================================================================
 # QuestaSim build/run for the GCD UVM testbench
 # =============================================================================
-# UVM: point UVM_HOME at the UVM-1.2 src tree bundled with QuestaSim, e.g.
-#   export UVM_HOME=$QUESTA_HOME/verilog_src/uvm-1.2
-# (If your Questa is set up to provide UVM automatically, you can drop the
-#  uvm_pkg.sv from the vlog line and add -L mtiUvm to vlog/vsim instead.)
-
-UVM_HOME ?= $(QUESTA_HOME)/verilog_src/uvm-1.2
+# Uses QuestaSim's built-in UVM (no need to compile uvm_pkg yourself).
+# If your Questa does NOT auto-provide UVM, set UVM_HOME to its UVM src tree
+# and add  +incdir+$(UVM_HOME)/src  +  $(UVM_HOME)/src/uvm_pkg.sv  to the vlog
+# lines below, e.g.:
+#   make UVM_HOME="$(dirname $(dirname $(which vlog)))/verilog_src/uvm-1.2"
 
 RTL  = rtl/gcd.sv
 TB   = tb/tb_gcd.sv
@@ -19,7 +18,7 @@ NUM_TX   ?= 100
 SCENARIO ?=
 VERB     ?= UVM_MEDIUM
 
-VLOG_FLAGS = -sv -mfcu +acc +incdir+$(UVM_HOME)/src
+VLOG_FLAGS = -sv -mfcu +acc
 COV_FLAGS  = -cover bcefsx
 
 PLUS = +UVM_TESTNAME=$(UVM_TEST) +UVM_VERBOSITY=$(VERB) +NUM_TX=$(NUM_TX)
@@ -33,12 +32,12 @@ all: compile run
 # ---- compile (no coverage) ----------------------------------------------
 compile:
 	vlib work
-	vlog $(VLOG_FLAGS) $(UVM_HOME)/src/uvm_pkg.sv $(RTL) $(TB)
+	vlog $(VLOG_FLAGS) $(RTL) $(TB)
 
 # ---- compile with code-coverage instrumentation -------------------------
 compile_cov:
 	vlib work
-	vlog $(VLOG_FLAGS) $(COV_FLAGS) $(UVM_HOME)/src/uvm_pkg.sv $(RTL) $(TB)
+	vlog $(VLOG_FLAGS) $(COV_FLAGS) $(RTL) $(TB)
 
 # ---- run (console) ------------------------------------------------------
 run:
