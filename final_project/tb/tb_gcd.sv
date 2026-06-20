@@ -743,16 +743,13 @@ package gcd_pkg;
         task body();
             gcd_in_seq_random  in_seq;
             gcd_out_seq_random out_seq;
-            gcd_rst_seq_random rst_seq;
 
             in_seq  = gcd_in_seq_random ::type_id::create("in_seq");
             out_seq = gcd_out_seq_random::type_id::create("out_seq");
-            rst_seq = gcd_rst_seq_random::type_id::create("rst_seq");
             in_seq.num_tx = num_tx;
 
             fork
                 out_seq.start(p_sequencer.out_sqr);   // random back-pressure, forever
-                rst_seq.start(p_sequencer.rst_sqr);   // mostly-idle random reset, forever
                 in_seq.start (p_sequencer.in_sqr);    // num_tx random transactions
             join_any
             disable fork;
