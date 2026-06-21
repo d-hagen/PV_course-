@@ -913,7 +913,9 @@ package gcd_pkg;
         localparam int unsigned WIDTH_LOW = VAL_MAX / 3;
         localparam int unsigned WIDTH_HI  = (VAL_MAX * 2) / 3;
 
-        covergroup gcd_cg;
+        bit [WIDTH-1:0] cov_a, cov_b;
+
+        covergroup gcd_proto_cg;
 
         in_valid  : coverpoint vif.cb_mon.in_valid;
         out_ready : coverpoint vif.cb_mon.out_ready;
@@ -944,7 +946,7 @@ package gcd_pkg;
                                                 binsof(out_valid) intersect {1};
         }
 
-        a_in : coverpoint vif.cb_mon.a_in {
+        gcd_out : coverpoint vif.cb_mon.gcd_out {
             bins lower_bins = {[0:WIDTH_LOW]};
             bins mid_bins   = {[WIDTH_LOW+1:WIDTH_HI-1]};
             bins high_bins  = {[WIDTH_HI:VAL_MAX]};
@@ -953,7 +955,31 @@ package gcd_pkg;
             bins max        = {VAL_MAX};
         }
 
-        b_in : coverpoint vif.cb_mon.b_in {
+        fsm_state : coverpoint (vif.cb_mon.in_ready  ? 2'd0 :
+                                vif.cb_mon.out_valid ? 2'd2 : 2'd1) {
+            bins idle        = {2'd0};
+            bins run         = {2'd1};
+            bins done        = {2'd2};
+            bins t_idle_run  = (2'd0 => 2'd1);
+            bins t_idle_done = (2'd0 => 2'd2);
+            bins t_run_done  = (2'd1 => 2'd2);
+            bins t_done_idle = (2'd2 => 2'd0);
+        }
+
+        endgroup
+
+        covergroup gcd_tx_cg;
+
+        a_in : coverpoint cov_a {
+            bins lower_bins = {[0:WIDTH_LOW]};
+            bins mid_bins   = {[WIDTH_LOW+1:WIDTH_HI-1]};
+            bins high_bins  = {[WIDTH_HI:VAL_MAX]};
+            bins zero       = {0};
+            bins one        = {1};
+            bins max        = {VAL_MAX};
+        }
+
+        b_in : coverpoint cov_b {
             bins lower_bins = {[0:WIDTH_LOW]};
             bins mid_bins   = {[WIDTH_LOW+1:WIDTH_HI-1]};
             bins high_bins  = {[WIDTH_HI:VAL_MAX]};
@@ -972,29 +998,9 @@ package gcd_pkg;
             bins both_zero    = binsof(a_in.zero)       && binsof(b_in.zero);
         }
 
-        gcd_out : coverpoint vif.cb_mon.gcd_out {
-            bins lower_bins = {[0:WIDTH_LOW]};
-            bins mid_bins   = {[WIDTH_LOW+1:WIDTH_HI-1]};
-            bins high_bins  = {[WIDTH_HI:VAL_MAX]};
-            bins zero       = {0};
-            bins one        = {1};
-            bins max        = {VAL_MAX};
-        }
-
-        a_eq_b : coverpoint (vif.cb_mon.a_in == vif.cb_mon.b_in) {
+        a_eq_b : coverpoint (cov_a == cov_b) {
             bins equal     = {1};
             bins not_equal = {0};
-        }
-
-        fsm_state : coverpoint (vif.cb_mon.in_ready  ? 2'd0 :
-                                vif.cb_mon.out_valid ? 2'd2 : 2'd1) {
-            bins idle        = {2'd0};
-            bins run         = {2'd1};
-            bins done        = {2'd2};
-            bins t_idle_run  = (2'd0 => 2'd1);
-            bins t_idle_done = (2'd0 => 2'd2);
-            bins t_run_done  = (2'd1 => 2'd2);
-            bins t_done_idle = (2'd2 => 2'd0);
         }
 
         endgroup
@@ -1022,9 +1028,10 @@ package gcd_pkg;
 
         function new(string name, uvm_component parent);
             super.new(name, parent);
-            gcd_cg   = new();
-            reset_cg = new();
-            bp_cg    = new();
+            gcd_proto_cg = new();
+            gcd_tx_cg    = new();
+            reset_cg     = new();
+            bp_cg        = new();
         endfunction
 
         function void build_phase(uvm_phase phase);
@@ -1034,13 +1041,16 @@ package gcd_pkg;
         endfunction
 
         function void write(gcd_in_tx t);
+            cov_a = t.a_in;
+            cov_b = t.b_in;
+            gcd_tx_cg.sample();
         endfunction
 
         task run_phase(uvm_phase phase);
             bit prev_rst = 1'b1;
             forever begin
                 @(vif.cb_mon);
-                gcd_cg.sample();
+                gcd_proto_cg.sample();
 
                 if (vif.cb_mon.out_valid && vif.cb_mon.out_ready) begin
                     bp_cg.sample();
