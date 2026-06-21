@@ -7,7 +7,8 @@ TB  = tb/tb_gcd.sv
 TOP = top
 
 # run-time knobs (override on the command line, e.g. make run TEST=random SEED=42)
-TEST     ?= smoke        # smoke | directed | random   -> gcd_test_<TEST>
+# TEST = smoke | directed | random  -> selects gcd_test_<TEST>
+TEST     ?= smoke
 SEED     ?= 1
 NUM_TX   ?= 100
 SCENARIO ?=
