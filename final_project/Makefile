@@ -14,6 +14,12 @@ NUM_TX   ?= 100
 SCENARIO ?=
 VERB     ?= UVM_MEDIUM
 
+# per-test seeds for the 'all' target (override individually,
+# e.g. make all SEED_SMOKE=5 SEED_DIRECTED=10 SEED_RANDOM=99)
+SEED_SMOKE    ?= 1
+SEED_DIRECTED ?= 7
+SEED_RANDOM   ?= 42
+
 VFLAGS = -sv -mfcu +acc
 # +cover enables code coverage metrics
 #     (s=stmt, b=branch, c=cond, e=expr, f=fsm, t=toggle)
@@ -42,16 +48,16 @@ run_cov: compile
 	vsim -c -coverage $(TOP) -l run_$(TEST).log -sv_seed $(SEED) $(PLUS) \
 	     -do "coverage save -onexit cov_$(TEST).ucdb; run -all; quit -f"
 
-# ---- coverage regression over the three tests ---------------------------
-regress: compile
-	vsim -c -coverage $(TOP) -l run_smoke.log    -sv_seed 1  +UVM_TESTNAME=gcd_test_smoke    -do "coverage save -onexit cov_smoke.ucdb; run -all; quit -f"
-	vsim -c -coverage $(TOP) -l run_directed.log -sv_seed 7  +UVM_TESTNAME=gcd_test_directed -do "coverage save -onexit cov_directed.ucdb; run -all; quit -f"
-	vsim -c -coverage $(TOP) -l run_random.log   -sv_seed 42 +UVM_TESTNAME=gcd_test_random +NUM_TX=1000 -do "coverage save -onexit cov_random.ucdb; run -all; quit -f"
+# ---- 'all' target: run the three tests with coverage, then merge --------
+all: compile
+	vsim -c -coverage $(TOP) -l run_smoke.log    -sv_seed $(SEED_SMOKE)    +UVM_TESTNAME=gcd_test_smoke    -do "coverage save -onexit cov_smoke.ucdb; run -all; quit -f"
+	vsim -c -coverage $(TOP) -l run_directed.log -sv_seed $(SEED_DIRECTED) +UVM_TESTNAME=gcd_test_directed -do "coverage save -onexit cov_directed.ucdb; run -all; quit -f"
+	vsim -c -coverage $(TOP) -l run_random.log   -sv_seed $(SEED_RANDOM)   +UVM_TESTNAME=gcd_test_random +NUM_TX=1000 -do "coverage save -onexit cov_random.ucdb; run -all; quit -f"
 	$(MAKE) merge
 	@{ echo "######## SMOKE ########";    cat run_smoke.log;    \
 	   echo "######## DIRECTED ########"; cat run_directed.log; \
-	   echo "######## RANDOM ########";   cat run_random.log;   } > regress.log
-	$(MAKE) summary | tee -a regress.log
+	   echo "######## RANDOM ########";   cat run_random.log;   } > all.log
+	$(MAKE) summary | tee -a all.log
 
 # ---- regression summary: per-test reports + grand total -----------------
 summary:
@@ -76,10 +82,10 @@ merge:
 
 # report one test's coverage (code + functional) to a file
 #   make cov_report TEST=directed                -> cov_directed.txt
-#   make cov_report TEST=regress                 -> cov_regress.txt (merged)
+#   make cov_report TEST=all                     -> cov_all.txt (merged)
 #   make cov_report TEST=random REPORT=foo.txt   -> custom file name
-#   TEST = smoke | directed | random | regress
-UCDB   = $(if $(filter regress,$(TEST)),merged.ucdb,cov_$(TEST).ucdb)
+#   TEST = smoke | directed | random | all
+UCDB   = $(if $(filter all,$(TEST)),merged.ucdb,cov_$(TEST).ucdb)
 REPORT ?= cov_$(TEST).txt
 
 cov_report:
@@ -91,7 +97,7 @@ cov_reports:
 	$(MAKE) cov_report TEST=smoke    REPORT=cov_smoke.txt
 	$(MAKE) cov_report TEST=directed REPORT=cov_directed.txt
 	$(MAKE) cov_report TEST=random   REPORT=cov_random.txt
-	$(MAKE) cov_report TEST=regress  REPORT=cov_regress.txt
+	$(MAKE) cov_report TEST=all      REPORT=cov_all.txt
 
 # full clean regression: fresh build, each test run + reported, then merged
 do_all:
@@ -103,7 +109,7 @@ do_all:
 	$(MAKE) run_cov    TEST=random NUM_TX=1000
 	$(MAKE) cov_report TEST=random
 	$(MAKE) merge
-	$(MAKE) cov_report TEST=regress
+	$(MAKE) cov_report TEST=all
 
 cov_html: merge
 	vcover report -html -output cov_html merged.ucdb
@@ -113,6 +119,6 @@ cov_gui: merge
 	vsim -viewcov merged.ucdb
 
 clean:
-	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html run_*.log regress.log cov_*.txt modelsim.ini
+	rm -rf work transcript *.wlf *.ucdb merged.ucdb cov_html run_*.log all.log cov_*.txt modelsim.ini
 
-.PHONY: compile run gui run_cov regress summary merge cov_report cov_reports cov_html cov_gui do_all clean
+.PHONY: compile run gui run_cov all summary merge cov_report cov_reports cov_html cov_gui do_all clean
