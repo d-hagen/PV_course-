@@ -113,7 +113,7 @@ do_all:
 
 cov_html: merge
 	vcover report -html -output cov_html merged.ucdb
-	xdg-open cov_html/index.html
+	@echo "HTML report written to cov_html/ -- open cov_html/index.html in a browser"
 
 cov_gui: merge
 	vsim -viewcov merged.ucdb
