@@ -98,7 +98,7 @@ module gcd #(
                     b_reg <= b_next;
 
                     // Check convergence on next-cycle values so the
-                    if (a_reg == b_reg) begin
+                    if (a_next == b_next) begin
                         result_reg <= a_next;
                         state      <= DONE;
                     end

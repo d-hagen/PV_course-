@@ -169,16 +169,14 @@ package gcd_pkg;
 
     
     typedef enum {
-        ZERO,         // RQ-M01: gcd(a,0)=a, gcd(0,b)=b, gcd(0,0)=0
-        EQUAL,        // RQ-M02: gcd(a,a)=a
-        MAX,          // RQ-M03: max-value operands + longest run
-        COPRIME,      // RQ-M03: coprime pairs -> gcd=1
-        POW2,         // RQ-M03: powers of two
-        BACK_TO_BACK, // RQ-T01: consecutive transactions with no idle gap
-        BACKPRESSURE, // RQ-H03/H04: back-to-back ops with output back-pressure
-                      //             (vseq auto-selects the back-pressure output seq)
-        RESET         // RQ-R01/R02: reset asserted mid-RUN (handled by the
-                      //             virtual sequence, not the input sequence)
+        ZERO,         // D1 - RQ-M01
+        EQUAL,        // D2 - RQ-M02
+        MAX,          // D3 - RQ-M03
+        COPRIME,      // D4 - RQ-M03
+        POW2,         // D5 - RQ-M03
+        BACK_TO_BACK, // D6 - RQ-T01
+        BACKPRESSURE, // D7 - RQ-H03/H04
+        RESET         // D8 - RQ-R01/R02
     } dir_scenario_e;
 
     class gcd_in_seq_directed extends gcd_in_seq_base;
@@ -227,6 +225,24 @@ package gcd_pkg;
                     `uvm_error(get_type_name(),
                                $sformatf("unknown directed scenario %0d", scenario))
             endcase
+        endtask
+    endclass
+
+    // bring-up: basic operands + one early exit, no edge cases
+    class gcd_in_seq_smoke extends gcd_in_seq_base;
+        `uvm_object_utils(gcd_in_seq_smoke)
+
+        function new(string name = "gcd_in_seq_smoke");
+            super.new(name);
+        endfunction
+
+        task body();
+            `uvm_do_with(req, { a_in == 6;  b_in == 9;  })  // gcd=3
+            `uvm_do_with(req, { a_in == 12; b_in == 8;  })  // gcd=4
+            `uvm_do_with(req, { a_in == 20; b_in == 16; })  // gcd=4
+            `uvm_do_with(req, { a_in == 9;  b_in == 3;  })  // gcd=3
+            `uvm_do_with(req, { a_in == 10; b_in == 5;  })  // gcd=5
+            `uvm_do_with(req, { a_in == 0;  b_in == 7;  })  // gcd=7 (early exit)
         endtask
     endclass
 
@@ -747,6 +763,28 @@ package gcd_pkg;
         endtask
     endclass
 
+    class gcd_vseq_smoke extends gcd_vseq_base;
+        `uvm_object_utils(gcd_vseq_smoke)
+
+        function new(string name = "gcd_vseq_smoke");
+            super.new(name);
+        endfunction
+
+        task body();
+            gcd_out_seq_always_ready out_seq;
+            gcd_in_seq_smoke         in_seq;
+
+            out_seq = gcd_out_seq_always_ready::type_id::create("out_seq");
+            in_seq  = gcd_in_seq_smoke        ::type_id::create("in_seq");
+
+            fork
+                out_seq.start(p_sequencer.out_sqr);
+                in_seq.start (p_sequencer.in_sqr);
+            join_any
+            disable fork;
+        endtask
+    endclass
+
 
     // ---- scoreboard --------------------------------------------------------
     class gcd_scoreboard extends uvm_scoreboard;
@@ -1093,39 +1131,13 @@ package gcd_pkg;
             super.new(name, parent);
         endfunction
 
-        // map a +SCENARIO string to the enum
-        function dir_scenario_e str2scn(string s);
-            case (s)
-                "zero":         return ZERO;
-                "back_to_back": return BACK_TO_BACK;
-                default: `uvm_fatal(get_type_name(),
-                            $sformatf("unknown +SCENARIO=%s", s))
-            endcase
-        endfunction
-
-        task run_one(dir_scenario_e scn);
-            gcd_vseq_directed vseq;
-            vseq = gcd_vseq_directed::type_id::create("vseq");
-            vseq.scenario = scn;
-            env.sb.scope_label = scn.name();
-            vseq.start(env.v_sqr);
-        endtask
-
         task run_phase(uvm_phase phase);
-            string         scn_str;
-            dir_scenario_e scn;
+            gcd_vseq_smoke vseq;
 
             phase.raise_objection(this);
-
-            if ($value$plusargs("SCENARIO=%s", scn_str)) begin
-                // run just the requested scenario
-                run_one(str2scn(scn_str));
-            end
-            else begin
-                run_one(ZERO);
-                run_one(BACK_TO_BACK);
-            end
-
+            vseq = gcd_vseq_smoke::type_id::create("vseq");
+            env.sb.scope_label = "smoke";
+            vseq.start(env.v_sqr);
             phase.drop_objection(this);
         endtask
     endclass

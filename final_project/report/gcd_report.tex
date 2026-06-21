@@ -1,0 +1,540 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage[table]{xcolor}
+
+\renewcommand{\arraystretch}{1.4}
+\rowcolors{2}{gray!8}{white}
+
+\title{Verification Report \\ \large GCD Module (UPC MIRI -- PV)}
+\author{Dan Hagen}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =====================================================================
+\part{Verification Plan}
+% =====================================================================
+
+\section{Design Description}
+
+The DUT is a $N$-bit Greatest Common Divisor (GCD) module that computes the gcd for two operands A and B using the  subtractive Euclidean algorithm. Both operands and resulting gcd are \texttt{WIDTH} bits wide. The model has 1 input, accepting the oprands a and b, and 1 output channel delivering the result, which both work via a classic ready/valid handshake system. Internally the module follows a three-state FSM(\texttt{IDLE} $\rightarrow$ \texttt{RUN} $\rightarrow$ \texttt{DONE} $\rightarrow$ \texttt{IDLE}) with synchronous active-low reset. Latency is one cycle for early-exit operands ($A=0$, $B=0$, or $A=B$) and $1+N$ cycles for the general case, where $N \geq 1$ is the number of subtractive iterations.
+
+
+\subsection*{Parameters}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcp{8cm}}
+\toprule
+Parameter & Default & Description \\
+\midrule
+\texttt{WIDTH} & 16 & Width of \texttt{a\_in}, \texttt{b\_in}, and \texttt{gcd\_out}. Must be $\geq 1$. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Top-Level Signal Interface}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{llcp{7.5cm}}
+\toprule
+Signal & Direction & Width & Description \\
+\midrule
+\texttt{clk}       & Input  & 1     & Clock signal \\
+\texttt{rst\_n}    & Input  & 1     & Active-low synchronous reset \\
+\texttt{in\_valid} & Input  & 1     & Producer asserts that \texttt{a\_in} and \texttt{b\_in} are valid \\
+\texttt{in\_ready} & Output & 1     & Module is ready to accept an input transaction \\
+\texttt{a\_in}     & Input  & WIDTH & First operand \\
+\texttt{b\_in}     & Input  & WIDTH & Second operand \\
+\texttt{out\_valid}& Output & 1     & Module asserts that \texttt{gcd\_out} is a valid result \\
+\texttt{out\_ready}& Input  & 1     & Consumer is ready to accept the output transaction \\
+\texttt{gcd\_out}  & Output & WIDTH & GCD result \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A transaction is captured on the rising edge where \texttt{in\_valid} and \texttt{in\_ready}
+are both high; \texttt{a\_in}/\texttt{b\_in} must remain stable while \texttt{in\_valid = 1}
+and \texttt{in\_ready = 0}. The output transaction completes on the rising edge where
+\texttt{out\_valid} and \texttt{out\_ready} are both high; \texttt{gcd\_out} must be driven
+from a dedicated result register and remain stable for the entire \texttt{out\_valid} period.
+
+\subsection*{FSM States}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lccp{7.5cm}}
+\toprule
+State & \texttt{in\_ready} & \texttt{out\_valid} & Description \\
+\midrule
+\texttt{IDLE} & 1 & 0 & Waiting for input. Ready to accept a new transaction. \\
+\texttt{RUN}  & 0 & 0 & Iterative subtraction in progress. No new input accepted. \\
+\texttt{DONE} & 0 & 1 & Result ready. Waiting for the consumer to accept it. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Reset Behavior}
+
+Reset is active-low and synchronous. \texttt{rst\_n} is sampled on the rising edge of
+\texttt{clk}  While
+\texttt{rst\_n = 0}, on every rising edge the FSM is forced to \texttt{IDLE}, all internal
+registers are cleared, and the module presents \texttt{in\_ready = 1},
+\texttt{out\_valid = 0}, \texttt{gcd\_out = 0}. On the first rising edge after
+\texttt{rst\_n} is released the module is in \texttt{IDLE} and ready to accept input
+immediately.
+
+\section{Traceability Matrix}
+
+Each requirement extracted from the specification is traced below to the design feature
+it characterises, the test that exercises it, and
+the assertion that guards it at simulation time.
+
+{\small
+\begin{longtable}{@{}p{1.3cm} p{5.0cm} p{2.8cm} p{1.4cm} p{3.2cm}@{}}
+\toprule
+\textbf{Req ID} & \textbf{Requirement} & \textbf{Feature} & \textbf{Test ID} & \textbf{Assertion ID} \\
+\midrule
+\endfirsthead
+
+\toprule
+\textbf{Req ID} & \textbf{Requirement} & \textbf{Feature} & \textbf{Test ID} & \textbf{Assertion ID} \\
+\midrule
+\endhead
+
+\bottomrule
+\endfoot
+
+RQ-M01 & Zero operand returns the other operand & Zero-operand handling & D1, S & \texttt{A\_EARLY\_EXIT}, SB \\
+
+RQ-M02 & Equal operands return that value & Equal-operand handling & D2 & \texttt{A\_EARLY\_EXIT}, SB \\
+
+RQ-M03 & GCD result is mathematically correct for general operand pairs & General computation & D3, D4, D5, S, R & SB \\
+
+RQ-F01 & FSM stays within legal state set & Legal-state invariant & D1--D8 & \texttt{A\_STATE\_LEGAL} \\
+
+RQ-F02 & Early-exit takes IDLE to DONE in one cycle & Early-exit transition & D1, D2, S & \texttt{A\_EARLY\_EXIT} \\
+
+RQ-F03 & Non-trivial input drives IDLE to RUN, and RUN to DONE on convergence & General-path transition & D3, D4, D5, S, R & \texttt{A\_GENERAL\_RUN}, \texttt{A\_RUN\_CONVERGE} \\
+
+RQ-F04 & Output handshake returns to IDLE & Result acceptance & D1--D8 & \texttt{A\_DONE\_IDLE} \\
+
+RQ-H01 & \texttt{in\_ready} high only in IDLE & Input handshake gating & D1--D8 & \texttt{A\_INRDY\_IDLE} \\
+
+RQ-H02 & \texttt{out\_valid} high for entire DONE & Output handshake gating & D1--D8 & \texttt{A\_OUTVLD\_DONE}, \texttt{A\_OUTVLD\_HELD} \\
+
+RQ-H03 & \texttt{gcd\_out} stable under back-pressure & Output stability & D7, R & \texttt{A\_OUT\_STABLE} \\
+
+RQ-H04 & \texttt{gcd\_out} sourced from dedicated result register & Dedicated output register & D7 & \texttt{A\_RESULT\_REG} \\
+
+RQ-R01 & Reset clears all registers and outputs synchronously & Reset values & D8 & \texttt{A\_RST\_CLEAR} \\
+
+RQ-R02 & Module accepts input on first edge after reset release & Post-reset readiness & D8 & \texttt{A\_RST\_READY} \\
+
+RQ-L01 & Early-exit latency is 1 cycle & Early-exit latency & D1, D2, S & \texttt{A\_EARLY\_EXIT}, SB \\
+
+RQ-L02 & General latency is $1+N$ cycles & General-case latency & D3, D4, R & SB \\
+
+RQ-T01 & Back-to-back transactions without idle gap & Sequential throughput & D6 & \texttt{A\_DONE\_IDLE}, SB \\
+
+RQ-P01 & Operands and \texttt{in\_valid} held stable while \texttt{in\_valid} high and \texttt{in\_ready} low & Input handshake stability & D1--D8 & \texttt{A\_IN\_STABLE}, \texttt{A\_INVLD\_HELD} \\
+
+\end{longtable}
+
+\vspace{-0.5em}
+{\scriptsize \itshape \color{gray!70!black}
+Req ID legend: M = Math \quad F = FSM \quad H = Handshake \quad R = Reset \quad L = Latency \quad T = Throughput \quad P = Protocol \\
+
+}
+
+\subsection*{Test ID legend}
+
+The Test ID column above refers to the following stimulus. \texttt{D1}--\texttt{D8} are the
+scenarios of \texttt{gcd\_test\_directed} (each selectable on its own via
+\texttt{+SCENARIO}); \texttt{S} is \texttt{gcd\_test\_smoke} (bring-up); \texttt{R} is
+\texttt{gcd\_test\_random}.
+
+{\small
+\begin{longtable}{@{}p{0.9cm} p{3.6cm} p{8.5cm}@{}}
+\toprule
+\textbf{ID} & \textbf{Test / scenario} & \textbf{Stimulus} \\
+\midrule
+\endhead
+\texttt{D1} & directed \texttt{ZERO}         & $\gcd(0,5),(5,0),(0,0)$ --- zero-operand early exit \\
+\texttt{D2} & directed \texttt{EQUAL}        & $\gcd(7,7),(1,1),(\textsc{max},\textsc{max})$ --- equal-operand early exit \\
+\texttt{D3} & directed \texttt{MAX}          & $(\textsc{max},1),(1,\textsc{max}),(\textsc{max},2)$ --- longest subtraction run \\
+\texttt{D4} & directed \texttt{COPRIME}      & $(3,5),(7,9),(13,17)$ --- coprime, $\gcd=1$ \\
+\texttt{D5} & directed \texttt{POW2}         & $(8,16),(4,32),(2,64)$ --- powers of two \\
+\texttt{D6} & directed \texttt{BACK\_TO\_BACK} & three pairs with \texttt{in\_delay}=0 (no idle gap) \\
+\texttt{D7} & directed \texttt{BACKPRESSURE}   & three pairs driven while \texttt{out\_ready} is stalled \\
+\texttt{D8} & directed \texttt{RESET}          & reset pulsed during IDLE / RUN / DONE \\
+\texttt{S}  & smoke (bring-up)               & six basic pairs (five general + one zero early-exit), no back-pressure/reset \\
+\texttt{R}  & random                         & \texttt{NUM\_TX} constrained-random pairs with random back-pressure \\
+\bottomrule
+\end{longtable}
+}
+
+\section{Verification Strategy}
+% Stimulus approach, checking approach, methodology choices.
+
+\subsection{Approach}
+
+The test stratagy follows the standart stimulus-response model. Stimulus gets driven into the DUT, the DUT responses are observed and compared against the specifications excpected behaior via a reference model. The DUT is treated as a black box by the scoreboard, so only signals from the Top-level signal interface (see section 1) are observed. Assertions do have acesses to the internal state of the machine to allow for testing of behavior of the  internal state of the FSM to observe if it complies with the  specifications.
+\newline
+Every requirement listed in the tracability Matrix in section 2 is hit by at least one test, observed by at least one assertion or scoreboard check, and closed against a coverage target in Section 5.
+
+ \subsection{Stimulus Generation}
+
+Stimulus genration is split in 3 groups:
+
+\begin{description}
+    \item[Bring-up test:] Drives six basic transactions --- five general-case operand pairs plus one zero-operand early exit --- with no back-pressure and no reset events. Its only job is to confirm the TB infrastructure works end-to-end.
+
+    \item[Directed Test:] For every feature row in the traceability matrix that is exercisable by stimulus, the directed test runs a dedicated sub-sequence targeting the feature. Each feature is hit  with at least three distinct stimulus variants. The directed test accepts a \texttt{+SCENARIO=<name>} plusarg to select a single sub-sequence to run on its own (on default runs all sequences).
+
+    \item[Constrained random:] A single constrained random sequence drives the DUT to test for edge cses. The constrains are tuned to hit coverage goals defined in section 5.
+
+\end{description}
+
+
+ \subsection{Result Checking}
+
+Three checking mechanisms run simultaneously:
+
+\begin{enumerate}
+    \item \textbf{Reference model.} The DUT processes one operand pair at a time, so the scoreboard tracks a single outstanding transaction. On each captured \texttt{(a, b)} the refrence model computes the gcd and the expected latency and records  the input timestamp. On the following \texttt{out\_valid} rising edge the observed value \texttt{gcd\_out} and latency get compared against the reference value latency. On reset the  in-flight expectation get cleared.
+
+    \item \textbf{Assertions.} SystemVerilog assertions check the spec's protocol and timing rules every clock cycle. Every assertion, except reset behavior assertions, is silenced while reset is active, matching the synchronous-reset behaviour. Assertions mostly check external pins, with a small number of exceptions that observe the internal FSM to confirm it follows the specified behaviour.
+
+    \item \textbf{Pending-flag protocol check.} The score board holds a pending flag when waiting for results of a previous input (pending cleaered on reset). If a new input arrives while a result is still outstanding, or a result appearing with no pending input, a \texttt{UVM\_ERROR} is raised. The scoreboard's \texttt{report\_phase} prints the total/failed check tally at the end of the test.
+\end{enumerate}
+
+\subsection{Reusability and Runtime Control}
+
+The TB is built to be reusable and configurable without recompiling. Per-test behaviour is controlled at run time via plusargs and \texttt{uvm\_config\_db}:
+
+\begin{itemize}
+    \item \texttt{+TESTNAME=<class>} picks the test.
+    \item \texttt{-sv\_seed <N>} seeds the randomisation engine.
+    \item \texttt{+NUM\_TX=<N>} sets the constrained-random transaction count.
+    \item \texttt{+SCENARIO=<name>} selects a single directed scenario (operand class, back-to-back, back-pressure, or reset).
+    \item \texttt{+UVM\_VERBOSITY=<level>} tunes logging.
+    \item \texttt{+UVM\_TIMEOUT=<time>,YES} bounds runaway sims.
+\end{itemize}
+
+\texttt{WIDTH} is set at compile time via \texttt{+define+TB\_WIDTH=N} (see Section 1).
+
+The same compiled image then runs over the cross-product of (test $\times$ seed $\times$ back-pressure $\times$ tx count $\times$ scenario).
+
+
+
+\section{Testbench Architecture}
+
+The testbench is a single-file UVM environment. The DUT exposes two independent
+ready/valid channels plus a reset, so the testbench mirrors the DUT with
+\textbf{three active agents}, one per interface. The agents are coordinated by a virtual
+sequencer. Figure~\ref{fig:tb-arch} shows the structure.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{tb_architecture.png}
+  {\includegraphics[width=\textwidth]{tb_architecture.png}}
+  {\fbox{\parbox{0.8\textwidth}{\centering\vspace{2cm} \textit{[testbench architecture diagram --- tb\_architecture.png]} \vspace{2cm}}}}
+\caption{Testbench architecture. Solid arrows: pin-level signals and
+\texttt{seq\_item}. Dashed: analysis ports (\texttt{ap\_in}/\texttt{ap\_avail}/\texttt{ap\_rst}).
+Dotted: virtual-sequencer handles to the agent sequencers.}
+\label{fig:tb-arch}
+\end{figure}
+
+\subsection*{Interface}
+A single \texttt{gcd\_if} carries all DUT signals. \texttt{rst\_n} is
+interface-owned. Each user gets its own clocking block and modport: \texttt{cb\_in}/\texttt{mp\_in} (drives
+\texttt{in\_valid}/\texttt{a\_in}/\texttt{b\_in}), \texttt{cb\_out}/\texttt{mp\_out}
+(drives \texttt{out\_ready}), \texttt{cb\_mon}/\texttt{mp\_mon} (samples
+everything, drives nothing), and \texttt{cb\_rst}/\texttt{mp\_rst} (drives
+\texttt{rst\_n}). All driving and sampling goes through the clocking blocks,
+eliminating TB/DUT races.
+
+\subsection*{Sequence items}
+\begin{itemize}
+    \item \texttt{gcd\_in\_tx} --- input stimulus: \texttt{a\_in}, \texttt{b\_in}, \texttt{in\_delay}.
+    \item \texttt{gcd\_out\_tx} --- output back-pressure stimulus: \texttt{ready}, \texttt{hold\_cycles}.
+    \item \texttt{gcd\_result\_tx} ---the captured \texttt{gcd\_out}.
+    \item \texttt{gcd\_rst\_tx} --- reset stimulus: \texttt{assert\_cycles}.
+\end{itemize}
+
+
+\subsection*{Agents}
+\begin{description}
+    \item[Input agent :] sequencer + driver + monitor. The driver runs the \texttt{in\_valid}/\texttt{in\_ready} handshake and the monitor publishes a \texttt{gcd\_in\_tx} on each captured input handshake.
+    \item[Output agent :] drives \texttt{out\_ready} and the monitor publishes a \texttt{gcd\_result\_tx}  at the \texttt{out\_valid} rising edge.
+    \item[Reset agent :] drives \texttt{rst\_n} (power-on reset plus any mid-flight pulses) and the reset monitor publishes a pulse on each \texttt{rst\_n} falling edge.
+\end{description}
+
+\subsection*{Virtual sequencer and sequences}
+The virtual sequencer combines the three sequences, matching input output and reset into one coherent driven system.
+
+
+\subsection*{Scoreboard}
+The scoreboard receives the input, result-available, and reset streams. Its purpose is to test result and latency and report back total test run and amunt of failed test. See details in sectin 3.3 .
+
+
+
+\subsection*{Top}
+\texttt{top} generates the clock, instantiates the interface (clock only) and the
+DUT, publishes the per-modport virtual interfaces via \texttt{uvm\_config\_db},
+binds the assertions, and calls \texttt{run\_test()}.
+
+\section{Coverage Goals}
+
+Closure uses both functional and code coverage.
+
+\subsection*{Functional coverage}
+Sampled by the coverage subscriber. Goal: every bin hit at least once.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}p{4.2cm} p{9.5cm}@{}}
+\toprule
+\textbf{Coverpoint / cross} & \textbf{Bins / intent} \\
+\midrule
+handshake state (in) & cross \texttt{in\_valid}$\times$\texttt{in\_ready}: handshake complete, input-not-valid, gcd-not-ready, idle \\
+handshake state (out) & cross \texttt{out\_ready}$\times$\texttt{out\_valid}: handshake complete, result-waiting, taker-waiting, idle \\
+\texttt{a\_in} / \texttt{b\_in} & operand value class: zero, one, low, mid, high, max \\
+\texttt{a}$\times$\texttt{b} cross & both-low, both-high, a-low/b-high, a-high/b-low, a-zero, b-zero, both-zero \\
+\texttt{a\_eq\_b} & equal vs not-equal operands \\
+\texttt{gcd\_out} class & result value class: zero, one, low, mid, high, max \\
+\texttt{fsm\_state} & IDLE, RUN, DONE,and transitions IDLE$\to$RUN, IDLE$\to$DONE, RUN$\to$DONE, DONE$\to$IDLE \\
+back-pressure stall & cycles \texttt{out\_valid} is held before the output handshake: none, 1, 2--3, $\geq 4$ (RQ-H03) \\
+reset state & reset asserted during IDLE / RUN / DONE \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Code coverage}
+Collected with \texttt{vlog +cover=bcefst} (branch, condition, expression, FSM,
+statement, toggle) and merged across tests with \texttt{vcover merge}. Goal:
+$\geq 90\%$.
+
+
+\section{Closure Criteria}
+
+Verification is considered closed when all of the following hold:
+
+\begin{enumerate}
+    \item \textbf{All tests pass} --- smoke, directed (all scenarios), and random complete with zero \texttt{UVM\_ERROR} and zero \texttt{UVM\_FATAL}.
+    \item \textbf{Scoreboard clean} --- the \texttt{report\_phase} reports zero failed value or latency checks.
+    \item \textbf{No assertion failures} --- every bound SVA property holds across all runs.
+    \item \textbf{Functional coverage} --- 100\% of the functional bins in Section~5 are hit.
+    \item \textbf{Code coverage} --- merged code coverage meets the Section~5 target, with any gap justified.
+\end{enumerate}
+
+% =====================================================================
+\newpage
+\part{Coverage Report}
+% =====================================================================
+
+\section{Methodology}
+
+
+Coverage is collected over for three \texttt{uvm\_test}s ,  \emph{smoke},
+\emph{directed} , and \emph{random} (constrained-random,
+1000~transactions). Every run is
+collects data for code coverage ( statement,
+branch, condition, expression, FSM, toggle) and functional
+covergroups. Per-test data  is saved and combined
+with \texttt{vcover merge}. The merged database is the final closure figure. In parallel,
+14 \texttt{bind}-ed SVA assertions are checked every cycle.
+
+\section{Coverage Progression}
+
+Coverage is reported per test and merged, showing how the directed and random
+tests close the goals that the smoke test only partially reaches.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lccccccc}
+\toprule
+\textbf{Test} & \textbf{Functional} & \textbf{Stmt} & \textbf{Branch} & \textbf{Cond} & \textbf{FSM St} & \textbf{FSM Tr} & \textbf{Toggle} \\
+\midrule
+smoke              & 44.14\% & 88.00\% & 81.81\% & 57.14\% & 100\% & 80.00\%  & 25.09\% \\
+directed           & 81.05\% & 96.00\% & 90.90\% & 71.42\% & 100\% & 100\%    & 100\%   \\
+random             & 77.77\% & 96.00\% & 90.90\% & 71.42\% & 100\% & 80.00\%  & 99.63\% \\
+\midrule
+\textbf{merged}    & \textbf{100.00\%} & \textbf{96.00\%} & \textbf{90.90\%} & \textbf{71.42\%} & \textbf{100\%} & \textbf{100\%} & \textbf{100\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Functional coverage closes to 100\%} over all test. 
+
+\section{Final Code Coverage (merged)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Covered / Bins} & \textbf{Coverage} \\
+\midrule
+Statements        & 24 / 25   & 96.00\%  \\
+Branches          & 20 / 22   & 90.90\%  \\
+Conditions        & 5 / 7     & 71.42\%  \\
+Expressions       & 2 / 2     & 100\%    \\
+FSM states        & 3 / 3     & 100\%    \\
+FSM transitions   & 5 / 5     & 100\%    \\
+Toggles           & 271 / 271 & 100\%    \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+The uncovered code parts consist of unreachable states, and are therefore to be excluded from closure requirements. 
+
+
+Every uncovered code item is \textbf{structurally unreachable}, so the reachable
+code coverage is 100\%:
+
+\begin{itemize}
+  \item \texttt{default: state <= IDLE;} (1 statement,
+        1 branch). Defensive statement , default never gets called. 
+
+        
+  \item Subtractive-step comparison false branch.For the  if and else if condition  \texttt{(b\_reg > a\_reg \& b\_reg < a\_reg )}, at least one always holds in RUN state so false/else branch never gets reached (\texttt{b\_reg == a\_reg}, should not occure in RUN state)
+  \item \texttt{(in\_valid \&\& in\_ready)}, \texttt{in\_ready} false term.
+        This statement executes only in \texttt{IDLE}, where
+        \texttt{in\_ready} $\equiv 1$ by definition, so the term cannot be 0.
+\end{itemize}
+
+\section{Coverage Closure}
+
+\begin{itemize}
+  \item \textbf{Functional coverage:} 100\% of all covergroup bins (merged).
+  \item \textbf{Code coverage:} 100\% of reachable statements, branches,
+        conditions, expressions, FSM states/transitions, and toggles
+  \item \textbf{Assertions:} 14 / 14 exercised, 0 failures across all runs.
+  \item \textbf{Tests:} smoke, directed, and random all pass with zero scoreboard
+        value or latency mismatches.
+\end{itemize}
+
+The verification goals defined in the plan are met.
+
+% =====================================================================
+\newpage
+\part{Bug Report}
+% =====================================================================
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\textbf{Ticket} & GCD-001 \\
+\textbf{Severity} & Major (functional timing) \\
+\textbf{Status} & Open \\
+\textbf{Found by} & UVM regression (smoke, directed, random) \\
+\end{tabular}
+\end{table}
+
+\section*{Summary}
+Every non early-exit GCD computation produces the \emph{correct result} but asserts
+\texttt{out\_valid} \textbf{one clock cycle too late}, violating the latency
+specification.
+
+\section*{Steps to Reproduce}
+\texttt{make regress} (seeds 1 / 7 / 42). Failures appear in all three tests.
+
+\section*{Observed vs.\ Expected}
+848 of 1025 scoreboard checks fail. The result value always matches the reference vlaue but the measured latency is always \texttt{expected + 1}. Example cases:
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+Operands & \texttt{gcd\_out} (obs/exp) & Latency obs & Latency exp & Result \\
+\midrule
+$\gcd(6,9)$       & 3 / 3 & 4      & 3      & value OK, +1 cycle \\
+$\gcd(3,5)$       & 1 / 1 & 5      & 4      & value OK, +1 cycle \\
+$\gcd(65535,1)$   & 1 / 1 & 65536  & 65535  & value OK, +1 cycle \\
+$\gcd(0,5)$       & 5 / 5 & 1      & 1      & \textbf{pass} (early-exit) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section*{Detection}
+\begin{itemize}\itemsep2pt
+  \item \textbf{Scoreboard latency check (RQ-L02)} --- reports
+        \texttt{delay = N+1, Expected delay = N} for every none early-exit input.
+  \item \textbf{Assertion \texttt{A\_RUN\_CONVERGE}} (\texttt{tb\_gcd.sv:1324},
+        \texttt{(a\_next==b\_next \&\& state==RUN) |=> state==DONE}) --- fired
+        848 times.
+\end{itemize}
+
+All value comparison, handshake test, and reset test pass. Bug seems to be purly a state transition delay, specifically in the step a next==b next transition RUN to Done.
+
+% =====================================================================
+\newpage
+\part{Build, Run \& Effort}
+% =====================================================================
+
+\section{Introduced Bug}
+For the failure-detection deliverable a one-line bug was injected into the DUT: the
+RUN$\to$DONE convergence test was changed from \texttt{if (a\_next == b\_next)} to
+\texttt{if (a\_reg == b\_reg)}, delaying every general-case result by one clock cycle.
+It is caught by the scoreboard latency check and the \texttt{A\_RUN\_CONVERGE} assertion
+(full ticket GCD-001 in the Bug Report above).
+
+\section{Hours Spent}
+Approximately 40 hours.
+
+\section{Makefile Targets}
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Target} & \textbf{Action} \\
+\midrule
+\texttt{compile}     & build the work library and compile RTL + TB (with coverage) \\
+\texttt{run}          & compile then run one test; transcript saved to \texttt{run\_<test>.log} \\
+\texttt{regress}      & run all three tests with coverage, merge, write \texttt{regress.log} + summary \\
+\texttt{cov\_report} / \texttt{cov\_reports} & write the coverage report(s) to a text file \\
+\texttt{cov\_html} / \texttt{cov\_gui}       & open merged coverage in a browser / the Questa GUI \\
+\texttt{clean}        & remove the build and all generated artifacts \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Command-line Examples}
+The three tests run from a single compiled image; each invocation varies not only the
+test name but the seed, scenario, transaction count, and verbosity:
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Test} & \textbf{Command} \\
+\midrule
+Bring-up & \texttt{make run TEST=smoke SEED=1 VERB=UVM\_LOW} \\
+Directed & \texttt{make run TEST=directed SCENARIO=reset SEED=7 VERB=UVM\_HIGH} \\
+Random   & \texttt{make run TEST=random NUM\_TX=1000 SEED=42} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}
+s
